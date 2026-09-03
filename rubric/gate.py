@@ -183,7 +183,7 @@ def misconfiguration_verdict(config):
     gate_cfg = config.get("gate") or {}
     if not gate_cfg.get("enabled"):
         return None
-    if not gate_cfg.get("requires_work_change"):
+    if not gate_cfg.get("requires_work_change", True):
         return None
     work_files = config.get("work_files")
     if isinstance(work_files, list) and work_files:
