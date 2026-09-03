@@ -27,6 +27,20 @@ def core_block(config):
     return CORE_TEMPLATE.format(who=who, cannot=cannot)
 
 
+def _word_bounded(pattern):
+    """`pattern`, wrapped in word-boundary anchors unless it already has one.
+
+    Matching is meant to be word-boundary throughout, so a situation
+    written as "class" cannot fire on "classify". A pattern that already
+    contains "\\b" (every pattern in the shipped presets and the existing
+    test fixtures) is left untouched, since it has already made its own
+    boundary decision.
+    """
+    if r"\b" in pattern:
+        return pattern
+    return r"\b(?:%s)\b" % pattern
+
+
 def situation_blocks(config, prompt):
     """The `say` of every configured situation whose `when` matches `prompt`."""
     if not isinstance(prompt, str):
@@ -38,7 +52,7 @@ def situation_blocks(config, prompt):
             continue
         for pattern in (block.get("when") or []):
             try:
-                if re.search(pattern, prompt, re.IGNORECASE):
+                if re.search(_word_bounded(pattern), prompt, re.IGNORECASE):
                     out.append(say)
                     break
             except (re.error, TypeError):

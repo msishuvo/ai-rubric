@@ -83,6 +83,34 @@ class SituationTests(unittest.TestCase):
         self.assertNotIn("npm test", context.build(with_table, "anything"))
 
 
+class WordBoundarySafetyTests(unittest.TestCase):
+    """A pattern with no explicit \\b still cannot fire on a mere substring.
+
+    The spec states matching is word-boundary throughout, but a pattern
+    written without \\b (a real user authoring their own situations,
+    unaware they need it) previously matched anywhere in the prompt.
+    """
+
+    def test_a_pattern_with_no_explicit_boundary_does_not_fire_on_a_substring(self):
+        config_no_boundary = cfg(situations=[
+            {"when": ["class"], "say": "SITUATION"}])
+        self.assertEqual(
+            context.situation_blocks(config_no_boundary, "classify the rows"), [])
+
+    def test_the_same_pattern_does_fire_on_a_genuine_word(self):
+        config_no_boundary = cfg(situations=[
+            {"when": ["class"], "say": "SITUATION"}])
+        self.assertEqual(
+            context.situation_blocks(config_no_boundary, "the class is broken"),
+            ["SITUATION"])
+
+    def test_a_pattern_that_already_has_a_boundary_is_not_double_wrapped(self):
+        config_explicit = cfg(situations=[
+            {"when": [r"\breact\b"], "say": "React behaviour is researched, not recalled."}])
+        blocks = context.situation_blocks(config_explicit, "why does react rerender here")
+        self.assertEqual(blocks, ["React behaviour is researched, not recalled."])
+
+
 class BuildTests(unittest.TestCase):
     def test_core_comes_first_and_situations_follow(self):
         built = context.build(cfg(situations=[
