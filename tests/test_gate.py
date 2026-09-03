@@ -168,6 +168,45 @@ class ResearchDialectTests(unittest.TestCase):
         self.assertIsNotNone(gate.decide(cfg, gate.signals(cfg, turn)))
 
 
+class MisconfigurationTests(unittest.TestCase):
+    def test_it_fires_when_work_files_is_empty_and_requires_work_change_is_true(self):
+        cfg = code_config(work_files=[])
+        verdict = gate.misconfiguration_verdict(cfg)
+        self.assertIsNotNone(verdict)
+        self.assertEqual(verdict.kind, "misconfigured")
+        self.assertIn("work_files", verdict.reason)
+
+    def test_it_does_not_fire_when_work_files_is_genuinely_configured(self):
+        cfg = code_config(work_files=["src/**/*.py"])
+        self.assertIsNone(gate.misconfiguration_verdict(cfg))
+
+    def test_it_does_not_fire_when_requires_work_change_is_false(self):
+        cfg = code_config(work_files=[],
+                           gate={"enabled": True, "requires_work_change": False})
+        self.assertIsNone(gate.misconfiguration_verdict(cfg))
+
+    def test_it_does_not_fire_when_the_gate_is_disabled(self):
+        cfg = code_config(work_files=[],
+                           gate={"enabled": False, "requires_work_change": True})
+        self.assertIsNone(gate.misconfiguration_verdict(cfg))
+
+    def test_a_non_list_work_files_value_also_counts_as_unset(self):
+        cfg = code_config(work_files=None)
+        self.assertIsNotNone(gate.misconfiguration_verdict(cfg))
+
+    def test_decide_surfaces_the_misconfiguration_verdict_even_with_no_claim(self):
+        cfg = code_config(work_files=[])
+        turn = turn_of(b.assistant(b.text("Just discussing, no claim here.")))
+        verdict = gate.decide(cfg, gate.signals(cfg, turn))
+        self.assertIsNotNone(verdict)
+        self.assertEqual(verdict.kind, "misconfigured")
+
+    def test_decide_does_not_misconfigure_when_work_files_present_and_no_claim(self):
+        cfg = code_config()
+        turn = turn_of(b.assistant(b.text("Just discussing, no claim here.")))
+        self.assertIsNone(gate.decide(cfg, gate.signals(cfg, turn)))
+
+
 class EvaluateTests(unittest.TestCase):
     def test_stop_hook_active_allows_without_looking(self):
         records = [b.user("go"), b.assistant(b.edit("/proj/src/a.py"), b.text("Fixed."))]

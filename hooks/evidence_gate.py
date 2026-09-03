@@ -88,10 +88,14 @@ def main():
         return 0
 
     mark_blocked(directory, session_id)
+    if verdict.kind == "misconfigured":
+        system_message = "Rubric: the gate is misconfigured and cannot fire."
+    else:
+        system_message = "Rubric: a completion claim with no check behind it."
     print(json.dumps({
         "decision": "block",
         "reason": verdict.reason,
-        "systemMessage": "Rubric: a completion claim with no check behind it.",
+        "systemMessage": system_message,
     }))
     return 0
 
@@ -99,5 +103,5 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:  # noqa: BLE001 - never break the session over this
+    except Exception:  # noqa: BLE001; never break the session over this
         sys.exit(0)

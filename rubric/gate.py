@@ -12,6 +12,12 @@ Blocks when all of these hold, and only then:
 The conjunction is deliberately tight. Discussion, refactors reported
 honestly, and answering a question all pass untouched.
 
+A separate check runs ahead of that conjunction: a config that requires a
+work change but never names any `work_files` can never satisfy condition 4,
+so it can never block, silently. `misconfiguration_verdict` catches that
+case on its own and blocks once to say so, through the same marker-file
+path a real block uses.
+
 Nothing here does I/O. `evaluate` takes records and returns a verdict; the
 hook shell is what reads stdin and prints.
 """
@@ -41,9 +47,10 @@ EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 class Verdict(object):
     """A decision to block, and the sentence explaining it."""
 
-    def __init__(self, reason, claims):
+    def __init__(self, reason, claims, kind="evidence_gap"):
         self.reason = reason
         self.claims = claims
+        self.kind = kind
 
 
 class Signals(object):
@@ -162,10 +169,44 @@ def _reason(config, found_claims):
     )
 
 
+def misconfiguration_verdict(config):
+    """A Verdict when the gate cannot possibly do what it is set to do.
+
+    `gate.requires_work_change` asks the gate to check that a `work_files`
+    path changed, but a project can set the former true and never set the
+    latter (the spec's own minimal example does exactly this). That gate is
+    enabled, believes it requires a work change, and can never detect one,
+    so it can never block. Nothing else would ever surface that silently
+    broken state, so it is checked here, structurally, rather than left to
+    be noticed.
+    """
+    gate_cfg = config.get("gate") or {}
+    if not gate_cfg.get("enabled"):
+        return None
+    if not gate_cfg.get("requires_work_change"):
+        return None
+    work_files = config.get("work_files")
+    if isinstance(work_files, list) and work_files:
+        return None
+    return Verdict(
+        "Rubric's gate requires a work file to change before it can block, "
+        "but no work_files patterns are configured in .claude/rubric.json, "
+        "so it can never detect one and can never fire. Add at least one "
+        'glob to work_files (for example "src/**/*.ts"), or set '
+        "gate.requires_work_change to false if this project's dialect does "
+        "not need one.",
+        [],
+        kind="misconfigured",
+    )
+
+
 def decide(config, computed):
     """A Verdict to block, or None to allow. Pure."""
     if not (config.get("gate") or {}).get("enabled"):
         return None
+    misconfigured = misconfiguration_verdict(config)
+    if misconfigured is not None:
+        return misconfigured
     if not computed.claims:
         return None
     if _search_any(config.get("disclaimers"), computed.said):
