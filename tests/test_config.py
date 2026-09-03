@@ -96,6 +96,20 @@ class LoadTests(unittest.TestCase):
                     "situations", "invariants"):
             self.assertIn(key, loaded)
 
+    def test_project_config_with_malformed_gate_does_not_raise(self):
+        self.write(self.project, {"gate": "off"})
+        loaded, configured = config.load(self.project, self.home)
+        self.assertTrue(configured)
+        self.assertIsInstance(loaded["gate"], dict)
+        self.assertIn("enabled", loaded["gate"])
+
+    def test_user_config_with_malformed_gate_does_not_raise(self):
+        self.write(self.home, {"gate": "off"})
+        loaded, configured = config.load(self.project, self.home)
+        self.assertFalse(configured)
+        self.assertIsInstance(loaded["gate"], dict)
+        self.assertIn("enabled", loaded["gate"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -105,7 +105,14 @@ def load(project_dir, home_dir=None, plugin_root=None):
         merged = deep_merge(merged, project_cfg)
 
     configured = project_cfg is not None
-    explicit = ((project_cfg or {}).get("gate") or {}).get("enabled")
+    # Only read explicit if gate is actually a dict in project config
+    project_gate = (project_cfg or {}).get("gate")
+    explicit = project_gate.get("enabled") if isinstance(project_gate, dict) else None
+
+    # If gate is malformed (not a dict) after merges, reset to default
+    if not isinstance(merged.get("gate"), dict):
+        merged["gate"] = dict(DEFAULTS["gate"])
+
     merged["gate"]["enabled"] = configured if explicit is None else bool(explicit)
 
     return merged, configured
