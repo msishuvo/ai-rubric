@@ -52,14 +52,28 @@ def deep_merge(base, overlay):
     """`overlay` applied over `base`. Objects merge, arrays replace.
 
     A key ending in "+" appends to the inherited array instead of
-    replacing it, and the "+" is stripped from the resulting key.
+    replacing it, and the "+" is stripped from the resulting key. A
+    non-list overlay value is wrapped as a single-element list rather than
+    iterated, so a user writing {"claims+": "looks good"} in place of the
+    correct {"claims+": ["looks good"]} gets one appended string, not one
+    appended character per letter.
     """
     out = dict(base)
     for key, value in (overlay or {}).items():
         if key.endswith("+"):
             name = key[:-1]
             inherited = out.get(name)
-            out[name] = list(inherited or []) + list(value or [])
+            if value is None:
+                addition = []
+            elif isinstance(value, list):
+                addition = value
+            else:
+                # A scalar overlay value, most likely a string a user wrote
+                # in place of a one-item list ("claims+": "looks good"). It
+                # is wrapped rather than iterated, because iterating a
+                # string appends it one character at a time.
+                addition = [value]
+            out[name] = list(inherited or []) + list(addition)
             continue
         if isinstance(value, dict) and isinstance(out.get(key), dict):
             out[key] = deep_merge(out[key], value)

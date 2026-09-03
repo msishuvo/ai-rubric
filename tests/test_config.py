@@ -36,6 +36,18 @@ class DeepMergeTests(unittest.TestCase):
         merged = config.deep_merge(base, {"evidence": {"commands+": ["npm test"]}})
         self.assertEqual(merged["evidence"]["commands"], ["make", "npm test"])
 
+    def test_a_bare_string_overlay_is_wrapped_not_shredded(self):
+        merged = config.deep_merge({"claims": ["a"]}, {"claims+": "b"})
+        self.assertEqual(merged["claims"], ["a", "b"])
+
+    def test_a_list_overlay_still_appends_each_element(self):
+        merged = config.deep_merge({"claims": ["a"]}, {"claims+": ["c"]})
+        self.assertEqual(merged["claims"], ["a", "c"])
+
+    def test_a_none_overlay_value_behaves_as_before(self):
+        merged = config.deep_merge({"claims": ["a"]}, {"claims+": None})
+        self.assertEqual(merged["claims"], ["a"])
+
 
 class ReadJsonTests(unittest.TestCase):
     def test_missing_file_returns_none(self):
