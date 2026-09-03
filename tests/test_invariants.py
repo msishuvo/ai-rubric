@@ -53,6 +53,19 @@ class ValidateTests(unittest.TestCase):
     def test_a_well_formed_rule_has_no_problems(self):
         self.assertEqual(invariants.validate([rule()]), [])
 
+    def test_a_files_glob_under_a_dot_directory_is_flagged(self):
+        problems = invariants.validate([rule(files=".github/**/*.yml")])
+        self.assertTrue(any(".github" in p for p in problems))
+
+    def test_an_ordinary_files_glob_is_not_flagged_for_dot_directories(self):
+        problems = invariants.validate([rule(files="src/**/*.ts")])
+        self.assertFalse(any(".github" in p for p in problems))
+        self.assertEqual(problems, [])
+
+    def test_a_list_valued_files_glob_is_flagged_as_not_a_string(self):
+        problems = invariants.validate([rule(files=["src/**/*.ts"])])
+        self.assertTrue(any("not a string" in p for p in problems))
+
 
 class ForbidTests(unittest.TestCase):
     def tearDown(self):
@@ -94,6 +107,14 @@ class ForbidTests(unittest.TestCase):
     def test_a_vendored_directory_is_never_walked(self):
         self.tree = Tree({"node_modules/src/a.ts": "console.log(1);\n"})
         self.assertEqual(invariants.run(self.tree.root, [rule(files="**/*.ts")]), [])
+
+    def test_a_rule_scoped_to_src_does_not_fire_on_a_lookalike_directory(self):
+        self.tree = Tree({
+            "src/a.ts": "const x = 1;\n",
+            "vendor/src/a.ts": "console.log(1);\n",
+        })
+        findings = invariants.run(self.tree.root, [rule(files="src/**/*.ts")])
+        self.assertEqual(findings, [])
 
 
 class RequireTests(unittest.TestCase):

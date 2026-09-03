@@ -12,8 +12,11 @@ import re
 _CACHE = {}
 
 
-def _translate(pattern):
-    out = ["(?:.*/)?"] if not pattern.startswith("**") else [""]
+def _translate(pattern, anchored=False):
+    if anchored or pattern.startswith("**"):
+        out = [""]
+    else:
+        out = ["(?:.*/)?"]
     index = 0
     length = len(pattern)
     while index < length:
@@ -36,29 +39,40 @@ def _translate(pattern):
     return re.compile("^" + "".join(out) + "$")
 
 
-def _compiled(pattern):
-    if pattern not in _CACHE:
+def _compiled(pattern, anchored=False):
+    key = (pattern, anchored)
+    if key not in _CACHE:
         try:
-            _CACHE[pattern] = _translate(pattern)
+            _CACHE[key] = _translate(pattern, anchored=anchored)
         except re.error:
-            _CACHE[pattern] = None
-    return _CACHE[pattern]
+            _CACHE[key] = None
+    return _CACHE[key]
 
 
-def matches(path, pattern):
+def matches(path, pattern, anchored=False):
     """True when `path` matches `pattern`.
 
-    The leading `(?:.*/)?` means a relative pattern also matches an
-    absolute path by its suffix, which is what makes `src/**/*.ts` work
-    against the absolute file_path an edit tool reports.
+    By default the leading `(?:.*/)?` means a relative pattern also matches
+    an absolute path by its suffix, which is what makes `src/**/*.ts` work
+    against the absolute file_path an edit tool reports. Pass
+    `anchored=True` to require the pattern to match from the very start of
+    `path` instead, which is what a root-relative path (as `invariants.py`
+    computes with `os.path.relpath`) needs: unanchored, `src/**/*.ts` would
+    also match `vendor/src/a.ts` by suffix, which is wrong for a rule scoped
+    to one directory.
+
+    A non-string `pattern` (a list, most likely, from a config mistake such
+    as `"files": ["src/**/*.ts"]`) is treated as no match rather than
+    raised, since a pattern that came from config is not guaranteed to be
+    the right shape.
     """
-    if not path or not pattern:
+    if not path or not pattern or not isinstance(pattern, str):
         return False
-    compiled = _compiled(pattern)
+    compiled = _compiled(pattern, anchored=anchored)
     if compiled is None:
         return False
     return bool(compiled.match(str(path).replace("\\", "/")))
 
 
-def matches_any(path, patterns):
-    return any(matches(path, p) for p in (patterns or []))
+def matches_any(path, patterns, anchored=False):
+    return any(matches(path, p, anchored=anchored) for p in (patterns or []))

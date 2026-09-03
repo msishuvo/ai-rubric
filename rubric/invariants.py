@@ -54,8 +54,20 @@ def validate(rules):
             problems.append(
                 "%s has no rule_source. Name the written rule it enforces, or "
                 "delete it." % name)
-        if not rule.get("files"):
+        files = rule.get("files")
+        if not files:
             problems.append("%s has no files glob." % name)
+        elif not isinstance(files, str):
+            problems.append(
+                "%s has a files value that is not a string. It must be one "
+                "glob string, such as \"src/**/*.ts\", not a list." % name)
+        else:
+            first_segment = files.split("/", 1)[0]
+            if first_segment.startswith("."):
+                problems.append(
+                    "%s scopes files under \"%s\", but the file walk never "
+                    "descends into a directory starting with a dot, so this "
+                    "rule can never fire." % (name, first_segment))
         has_forbid = bool(rule.get("forbid"))
         has_require = bool(rule.get("require"))
         if has_forbid and has_require:
@@ -98,7 +110,11 @@ def run(root, rules):
     findings = []
     for full, relative in _files_under(root):
         for rule in usable:
-            if not globs.matches(relative, rule.get("files")):
+            # Anchored: a root-relative path must match from its start, so
+            # a rule scoped to "src/**/*.ts" cannot also match
+            # "vendor/src/a.ts" by suffix, the way the unanchored match
+            # gate.py relies on would let it.
+            if not globs.matches(relative, rule.get("files"), anchored=True):
                 continue
             findings.extend(_check(full, relative, rule))
     findings.sort(key=lambda f: (f.path, f.line or 0, f.rule))

@@ -40,6 +40,21 @@ class MatchTests(unittest.TestCase):
     def test_matches_any_of_nothing_is_false(self):
         self.assertFalse(globs.matches_any("src/a.ts", []))
 
+    def test_a_non_string_pattern_does_not_raise(self):
+        self.assertFalse(globs.matches("a.ts", ["not", "a", "string"]))
+
+
+class AnchoredMatchTests(unittest.TestCase):
+    def test_anchored_matches_the_rooted_path(self):
+        self.assertTrue(globs.matches("src/a.ts", "src/**/*.ts", anchored=True))
+
+    def test_anchored_does_not_match_a_longer_path_by_suffix(self):
+        self.assertFalse(globs.matches("vendor/src/a.ts", "src/**/*.ts", anchored=True))
+
+    def test_unanchored_default_is_unchanged(self):
+        self.assertTrue(globs.matches("vendor/src/a.ts", "src/**/*.ts"))
+        self.assertTrue(globs.matches("vendor/src/a.ts", "src/**/*.ts", anchored=False))
+
 
 if __name__ == "__main__":
     unittest.main()
