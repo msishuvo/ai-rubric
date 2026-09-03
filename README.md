@@ -9,7 +9,7 @@ an hour after it was written down.
 | Mechanism | When it runs | What it does |
 |---|---|---|
 | `rubric_context.py` | every prompt | asks three verification questions, plus any situation blocks the prompt matches |
-| `evidence_gate.py` | end of a turn | blocks once when work changed, a completion claim was made, and nothing ran |
+| `evidence_gate.py` | end of a turn | blocks once when a completion claim was made, no disclaimer was given, and nothing ran that would show it. For the `code` dialect this also requires a work file to have changed; the `research` dialect blocks even with no edit, since a claim about a source needs no code change behind it |
 | `check_invariants.py` | on demand | greps the conventions a grep can settle, and reports rather than blocks |
 
 ## Install, once per device
@@ -47,6 +47,13 @@ Device-wide defaults, mainly `who` and `cannot_check`, go in
 gate; that takes a project file.
 
 Full field reference: `docs/superpowers/specs/2026-09-03-rubric-design.md`.
+
+## Running the invariant checker directly
+
+    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_invariants.py"
+
+`/rubric:setup` already runs this once, as its proof step, but it can be run
+standalone at any time to get the current triage list.
 
 ## The escape hatch
 

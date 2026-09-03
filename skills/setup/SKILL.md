@@ -28,8 +28,15 @@ Gather all of this before saying anything:
 | `go.mod` | `go test ./...` |
 | `Makefile` targets named `test` or `build` | `make test` |
 | existing `CLAUDE.md` or `AGENTS.md` | candidate invariants, and the `rule_source` for each |
-| `git log --stat -20` | which paths are actually the work |
+| `git log --stat -20` | `work_files`: the glob list for which paths are actually the work |
 | none of the above, and mostly prose files | the `research` dialect |
+
+`work_files` matters as much as any evidence command: a `code`-dialect config
+has `gate.requires_work_change` true by default, and the gate can only see a
+work change happen when `work_files` names the paths to look at. A config
+that sets the dialect but never sets `work_files` has a gate that believes it
+requires a work change and can never detect one, so it can never fire. Step 6
+refuses to write such a config.
 
 ## Step 2: Propose
 
@@ -73,6 +80,14 @@ Show the file as a diff first. Create `.claude/` if the repository has
 none. If `.claude/rubric.json` already exists, merge into it and never
 replace it.
 
+**Hard requirement, not a suggestion:** if the config being written has
+`gate.requires_work_change` effectively true (a `code`-dialect config, or any
+config that does not explicitly override it to false), do not finish writing
+until `work_files` holds at least one glob. A config written without one is
+a gate that is enabled, believes it requires a work-file change, and can
+never detect one, so it can never fire, silently. Go back to Step 1 and 3 and
+get at least one real glob before writing the file.
+
 ## Step 7: Prove it
 
 Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_invariants.py"` and show
@@ -80,5 +95,7 @@ the real output. The project's first experience of the kit is a result,
 not a claim that it is installed.
 
 Then say plainly what is now in force and what is not: the gate blocks a
-completion claim only when a work file changed and nothing ran, and it
-blocks once per session.
+completion claim made with no disclaimer and nothing that would show it ran,
+once per session. For the `code` dialect that also requires a work file to
+have changed; the `research` dialect blocks even with no edit, since a claim
+about a source needs no code change behind it.
