@@ -61,5 +61,5 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:  # noqa: BLE001 - never break a session over this
+    except Exception:  # noqa: BLE001; never break a session over this
         sys.exit(0)
