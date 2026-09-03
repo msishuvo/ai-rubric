@@ -67,6 +67,37 @@ that the person reading knows which sentences are load bearing.
 
 Standard library only. No pip, no venv.
 
+## Observed install behaviour
+
+Installed for real from this repository (`claude plugin marketplace add
+msishuvo/claude-rubric`, `claude plugin install rubric@claude-rubric`) and
+proven end to end against a throwaway scratch project, driving the
+installed hook scripts directly with a real transcript rather than through
+a separate live Claude Code session, since this session stays bound to one
+project directory. Observed:
+
+    $ echo '{"prompt": "please fix the bug in add.py", ...}' \
+        | python3 hooks/rubric_context.py
+    {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+      "additionalContext": "Before any factual claim this turn:\n  1. Checked, or
+      recalled? ...\n  3. If I am wrong here, could live-proof tell? They cannot
+      check nothing yet, this is a scratch project. If no, slow down.\n..."}}
+
+    $ echo '{"transcript_path": ".../transcript-a-should-block.jsonl", ...}' \
+        | python3 hooks/evidence_gate.py
+    {"decision": "block", "reason": "This turn told the user \"Fixed\", but
+      nothing ran that would show it. Run one of these first: python3 -m
+      unittest discover -s tests (under 1 second). Otherwise write \"I have
+      not checked this\" ...", "systemMessage": "Rubric: a completion claim
+      with no check behind it."}
+
+    $ # same session_id, second call: silent, exit 0 (once-per-session marker holds)
+    $ # a transcript whose claim carries "I have not checked this": silent, exit 0
+
+`msishuvo/claude-rubric` turned out to be a public repository, so this run
+does not answer spec section 3's open question about `marketplace add`
+against a private one; that remains untested.
+
 ## Known limits
 
 - The `research` dialect is the less proven half. Retune `claims` and
