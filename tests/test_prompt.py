@@ -20,6 +20,9 @@ class BuildPromptTest(unittest.TestCase):
         self.assertIn("- /c", lines)
         self.assertTrue(prompt.endswith(brief))
 
+    def test_prompt_prefers_file_tools_over_shell(self):
+        self.assertIn("file-reading and search tools", build_prompt("b", ["/w"]))
+
     def test_prompt_forbids_edits(self):
         self.assertIn("Do not edit", build_prompt("b", ["/w"]))
 

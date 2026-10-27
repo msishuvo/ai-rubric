@@ -82,7 +82,8 @@ def _run_one(judge: Judge, config: Config, prompt: str, cwd: str,
     text = out_file.read_text() if out_file.is_file() else proc.stdout
     out_file.unlink(missing_ok=True)
     if not text.strip():
-        return done(False, error="empty verdict")
+        reason = _tail(proc.stderr, 5)
+        return done(False, error=f"empty verdict: {reason}" if reason else "empty verdict")
     return done(True, text=text)
 
 

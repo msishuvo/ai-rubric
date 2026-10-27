@@ -90,6 +90,15 @@ class RunConsultTest(unittest.TestCase):
         self.assertFalse(verdicts[0].ok)
         self.assertEqual(verdicts[0].error, "empty verdict")
 
+    def test_empty_output_includes_stderr_reason(self):
+        body = "sys.stderr.write('a tool required the command permission\\n')"
+        cfg = self.config(cli_paths={"codex": self.fake("codex"),
+                                     "agy": self.fake("agy", text="", body=body)})
+        _, verdicts = run_consult("claude", "Q", str(self.ws), [], cfg)
+        self.assertFalse(verdicts[1].ok)
+        self.assertTrue(verdicts[1].error.startswith("empty verdict"))
+        self.assertIn("required the command permission", verdicts[1].error)
+
     def test_nonzero_exit_captures_stderr(self):
         body = "sys.stderr.write('not logged in\\n'); sys.exit(4)"
         cfg = self.config(cli_paths={"codex": self.fake("codex"),

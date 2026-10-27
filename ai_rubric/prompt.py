@@ -10,6 +10,9 @@ Rules:
 - Read the workspace yourself. The files named in the brief are a starting point,
   not a limit; open whatever else bears on the question.
 - Do not edit, create or delete anything. This is a read-only review.
+- Use your file-reading and search tools rather than shell commands. Only a few
+  read-only commands (ls, cat, grep, git status ...) may be allowed; if a command
+  is refused, carry on without it and still give your full answer.
 - Do not invent facts. Cite file paths (with lines where useful) or sources for
   every claim that matters. If you could not check something, say so.
 

@@ -5,6 +5,7 @@ set -u
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BLOCKS=(python3 "$REPO/ai_rubric/blocks.py")
+AGY_STATE="$HOME/.local/state/ai-rubric/agy-added.json"
 status=0
 
 LINKS=(
@@ -51,6 +52,7 @@ if [ "${1:-}" = "--uninstall" ]; then
     "${BLOCKS[@]}" remove "$f" md || status=1
   done
   "${BLOCKS[@]}" remove "$HOME/.codex/rules/default.rules" hash || status=1
+  python3 "$REPO/ai_rubric/agy_settings.py" remove "$HOME/.gemini/antigravity-cli/settings.json" "$AGY_STATE" || status=1
   echo "ai-rubric removed (only its own links and marked blocks)."
   exit $status
 fi
@@ -66,6 +68,8 @@ frag="$(codex_rules_fragment)"
 "${BLOCKS[@]}" upsert "$HOME/.codex/rules/default.rules" hash "$frag" \
   && echo "rules   $HOME/.codex/rules/default.rules" || status=1
 rm -f "$frag"
+python3 "$REPO/ai_rubric/agy_settings.py" add "$HOME/.gemini/antigravity-cli/settings.json" "$AGY_STATE" \
+  && echo "rules   $HOME/.gemini/antigravity-cli/settings.json (read-only commands)" || status=1
 
 echo
 echo "Judge CLIs:"

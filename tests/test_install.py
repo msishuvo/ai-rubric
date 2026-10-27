@@ -65,6 +65,9 @@ class InstallScriptTest(unittest.TestCase):
         self.assertIn("# ai-rubric start", rules)
         for name in ("claude", "codex", "agy"):
             self.assertIn(name, proc.stdout)
+        import json
+        agy = json.loads((self.home / ".gemini/antigravity-cli/settings.json").read_text())
+        self.assertIn("command(cat)", agy["permissions"]["allow"])
 
     def test_install_twice_is_idempotent(self):
         self.run_install()
@@ -89,6 +92,9 @@ class InstallScriptTest(unittest.TestCase):
         self.assertEqual(rules.read_text(), 'prefix_rule(pattern=["ls"], decision="allow")\n')
         self.assertFalse((self.home / ".claude/skills/consult").exists())
         self.assertFalse((self.home / ".local/bin/consult").is_symlink())
+        import json
+        agy = json.loads((self.home / ".gemini/antigravity-cli/settings.json").read_text())
+        self.assertNotIn("permissions", agy)
 
     def test_block_replaced_not_duplicated(self):
         copy = Path(self.tmp.name, "repo")
