@@ -39,6 +39,10 @@ def main(argv: list[str]) -> int:
     except (ValueError, OSError) as exc:
         print(f"consult: bad config: {exc}", file=sys.stderr)
         return 2
+    missing = [d for d in args.add_dir if not os.path.isdir(os.path.expanduser(d))]
+    if missing:
+        print(f"consult: --add-dir folder not found: {', '.join(missing)}", file=sys.stderr)
+        return 2
     hits = lint_brief(brief)
     if hits and not args.allow_flagged:
         print(LINT_MESSAGE.format(hits=", ".join(hits)), file=sys.stderr)

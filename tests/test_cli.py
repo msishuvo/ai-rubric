@@ -52,7 +52,7 @@ class MainTest(unittest.TestCase):
     def test_output_format_and_exit_0(self):
         with mock.patch.object(cli, "run_consult", return_value=self.verdicts(True, False)):
             code, out, _ = self.call("--from", "claude", "--brief", str(self.brief),
-                                     "--add-dir", "/a")
+                                     "--add-dir", self.tmp.name)
         self.assertEqual(code, 0)
         self.assertIn("=== codex (model-codex) — ok ===\n## Verdict\nkeep", out)
         self.assertIn("=== agy (model-agy) — FAILED ===\nboom", out)
@@ -73,6 +73,14 @@ class MainTest(unittest.TestCase):
             code, _, err = self.call("--from", "claude", "--brief", str(self.brief))
         self.assertEqual(code, 2)
         self.assertIn("read-only fs", err)
+
+    def test_missing_add_dir_exit_2_no_run(self):
+        with mock.patch.object(cli, "run_consult") as run:
+            code, _, err = self.call("--from", "claude", "--brief", str(self.brief),
+                                     "--add-dir", "/no/such/folder")
+        self.assertEqual(code, 2)
+        self.assertIn("/no/such/folder", err)
+        run.assert_not_called()
 
     def test_missing_brief_exit_2(self):
         code, _, err = self.call("--from", "claude", "--brief", "/no/such/brief.md")

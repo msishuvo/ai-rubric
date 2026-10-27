@@ -30,6 +30,14 @@ class AgySettingsTest(unittest.TestCase):
         self.assertEqual(data["trustedWorkspaces"], ["/a"])
         self.assertEqual(data["permissions"]["allow"], READ_ONLY_RULES)
 
+    def test_add_keeps_indent_and_non_ascii(self):
+        self.settings.write_text('{\n    "name": "S\u00f8ren"\n}\n', encoding="utf-8")
+        add_rules(self.settings, self.state)
+        text = self.settings.read_text(encoding="utf-8")
+        self.assertIn('"S\u00f8ren"', text)
+        self.assertNotIn("\\u00f8", text)
+        self.assertIn('\n    "name"', text)
+
     def test_add_is_idempotent(self):
         self.settings.write_text("{}")
         add_rules(self.settings, self.state)

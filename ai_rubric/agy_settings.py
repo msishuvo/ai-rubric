@@ -21,12 +21,26 @@ READ_ONLY_RULES = [
 
 
 def _load(path: Path) -> dict:
-    return json.loads(path.read_text()) if path.is_file() and path.read_text().strip() else {}
+    if not path.is_file():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    return json.loads(text) if text.strip() else {}
+
+
+def _indent(path: Path) -> int:
+    """The file's own indent width (first indented line), else 2."""
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines()[1:]:
+            stripped = line.lstrip(" ")
+            if stripped and len(stripped) < len(line):
+                return len(line) - len(stripped)
+    return 2
 
 
 def _save(path: Path, data: dict) -> None:
+    indent = _indent(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    path.write_text(json.dumps(data, indent=indent, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def add_rules(settings: Path, state: Path) -> None:

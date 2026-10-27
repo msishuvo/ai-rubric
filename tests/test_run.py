@@ -136,6 +136,19 @@ class RunConsultTest(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
 
+    def test_brief_reaches_every_judge_byte_for_byte(self):
+        brief = 'Q: a "b" $c `d` \\n\nline2 \u00fc\u00f1 \u2014 ' + "x" * 50000
+        seen = {}
+        for name, index in (("codex", -1), ("agy", 1)):
+            out = self.dir / f"{name}-prompt.bin"
+            seen[name] = out
+            body = f"open({str(out)!r}, 'wb').write(args[{index}].encode('utf-8'))"
+            setattr(self, f"{name}_cli", self.fake(name, body=body))
+        cfg = self.config(cli_paths={"codex": self.codex_cli, "agy": self.agy_cli})
+        run_consult("claude", brief, str(self.ws), [], cfg)
+        for name, path in seen.items():
+            self.assertIn(brief.encode("utf-8"), path.read_bytes(), name)
+
     def test_nonzero_exit_captures_stderr(self):
         body = "sys.stderr.write('not logged in\\n'); sys.exit(4)"
         cfg = self.config(cli_paths={"codex": self.fake("codex"),
