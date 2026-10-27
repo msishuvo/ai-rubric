@@ -1,8 +1,0 @@
-{
-  "name": "rubric",
-  "description": "Carries a project's own standards into every turn and holds work to them. Injects verification questions on every prompt, blocks completion claims with no check behind them, and greps the conventions a grep can settle.",
-  "version": "0.1.0",
-  "author": { "name": "msishuvo" },
-  "repository": "https://github.com/msishuvo/claude-rubric",
-  "keywords": ["verification", "standards", "hooks", "conventions"]
-}
