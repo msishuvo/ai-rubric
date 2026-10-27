@@ -1,0 +1,3 @@
+# Let Codex run the consult command outside the sandbox: its judges need the network.
+prefix_rule(pattern=["consult"], decision="allow")
+prefix_rule(pattern=["@HOME@/.local/bin/consult"], decision="allow")
