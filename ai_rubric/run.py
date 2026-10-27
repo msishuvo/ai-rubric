@@ -2,6 +2,7 @@
 
 import os
 import re
+import signal
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -55,6 +56,35 @@ def _tail(text: str, lines: int = 20) -> str:
     return "\n".join(text.strip().splitlines()[-lines:])
 
 
+def _kill_group(proc: subprocess.Popen) -> None:
+    """Stop the judge and every process it started."""
+    for sig, wait in ((signal.SIGTERM, 3), (signal.SIGKILL, 3)):
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            return
+        try:
+            proc.wait(timeout=wait)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def _run_cli(argv: list[str], cwd: str, timeout: int) -> tuple[int, str, str]:
+    """Run a judge in its own process group; on timeout kill the whole group."""
+    proc = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, start_new_session=True)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_group(proc)
+        proc.stdout.close()
+        proc.stderr.close()
+        raise
+    decode = lambda b: b.decode("utf-8", errors="replace")  # noqa: E731
+    return proc.returncode, decode(out), decode(err)
+
+
 def _run_one(judge: Judge, config: Config, prompt: str, cwd: str,
              add_dirs: list[str], run_dir: Path, log: list[str]) -> Verdict:
     start = time.monotonic()
@@ -64,27 +94,30 @@ def _run_one(judge: Judge, config: Config, prompt: str, cwd: str,
         log.append(f"{judge.name}: ok={ok} seconds={secs} error={error}")
         return Verdict(judge.name, judge.model, ok, text, error, secs)
 
-    cli = find_cli(judge.name, config)
-    if cli is None:
-        return done(False, error=f"{judge.name} CLI not found")
-    out_file = run_dir / f".{judge.name}-last-message.md"
-    argv = build_command(judge, cli, prompt, cwd, add_dirs, str(out_file))
-    log.append(f"{judge.name}: argv={[a if a != prompt else '<prompt>' for a in argv]}")
     try:
-        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
-                              timeout=config.timeout, stdin=subprocess.DEVNULL)
-    except subprocess.TimeoutExpired:
-        return done(False, error=f"timed out after {config.timeout}s")
-    except OSError as exc:
-        return done(False, error=f"could not start {cli}: {exc}")
-    if proc.returncode != 0:
-        return done(False, error=f"exit {proc.returncode}: {_tail(proc.stderr or proc.stdout)}")
-    text = out_file.read_text() if out_file.is_file() else proc.stdout
-    out_file.unlink(missing_ok=True)
-    if not text.strip():
-        reason = _tail(proc.stderr, 5)
-        return done(False, error=f"empty verdict: {reason}" if reason else "empty verdict")
-    return done(True, text=text)
+        cli = find_cli(judge.name, config)
+        if cli is None:
+            return done(False, error=f"{judge.name} CLI not found")
+        out_file = run_dir / f".{judge.name}-last-message.md"
+        argv = build_command(judge, cli, prompt, cwd, add_dirs, str(out_file))
+        log.append(f"{judge.name}: argv={[a if a != prompt else '<prompt>' for a in argv]}")
+        try:
+            code, stdout, stderr = _run_cli(argv, cwd, config.timeout)
+        except subprocess.TimeoutExpired:
+            return done(False, error=f"timed out after {config.timeout}s")
+        if code != 0:
+            return done(False, error=f"exit {code}: {_tail(stderr or stdout)}")
+        if out_file.is_file():
+            text = out_file.read_bytes().decode("utf-8", errors="replace")
+            out_file.unlink()
+        else:
+            text = stdout
+        if not text.strip():
+            reason = _tail(stderr, 5)
+            return done(False, error=f"empty verdict: {reason}" if reason else "empty verdict")
+        return done(True, text=text)
+    except Exception as exc:  # one judge's failure must never lose the other's verdict
+        return done(False, error=f"{type(exc).__name__}: {exc}")
 
 
 def run_consult(host: str, brief: str, cwd: str, add_dirs: list[str],

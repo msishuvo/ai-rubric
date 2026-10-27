@@ -1,7 +1,10 @@
 """Insert, replace or remove one marked block in a text file, leaving the rest untouched.
 
-Used by install.sh:  python3 blocks.py upsert|remove FILE md|hash [FRAGMENT_FILE]
+Used by install.sh:  python3 blocks.py upsert|remove|check FILE md|hash [FRAGMENT_FILE]
+Reads and writes UTF-8 with newlines untranslated, and matches the file's line endings.
 """
+
+from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -20,19 +23,27 @@ def _span(text: str, start: str, end: str) -> tuple[int, int] | None:
     if j < 0:
         raise ValueError(f"found {start!r} without {end!r}; fix the file by hand")
     j += len(end)
-    if text[j:j + 1] == "\n":
-        j += 1
+    for nl in ("\r\n", "\n"):
+        if text.startswith(nl, j):
+            j += len(nl)
+            break
     return i, j
 
 
+def _newline(text: str) -> str:
+    return "\r\n" if "\r\n" in text else "\n"
+
+
 def upsert_block(text: str, body: str, start: str, end: str) -> str:
-    block = f"{start}\n{body.rstrip()}\n{end}\n"
+    nl = _newline(text)
+    lines = body.replace("\r\n", "\n").rstrip().split("\n")
+    block = nl.join([start, *lines, end]) + nl
     span = _span(text, start, end)
     if span:
         return text[:span[0]] + block + text[span[1]:]
     if not text:
         return block
-    sep = "\n" if text.endswith("\n") else "\n\n"
+    sep = nl if text.endswith(nl) else nl + nl
     return text + sep + block
 
 
@@ -41,17 +52,35 @@ def remove_block(text: str, start: str, end: str) -> str:
     if not span:
         return text
     before, after = text[:span[0]], text[span[1]:]
-    if before.endswith("\n\n"):
-        before = before[:-1]  # the blank line upsert added
+    nl = _newline(text)
+    if before.endswith(nl + nl):
+        before = before[:-len(nl)]  # the blank line upsert added
     return before + after
+
+
+def _read(path: Path) -> str:
+    with open(path, encoding="utf-8", newline="") as f:
+        return f.read()
+
+
+def _write(path: Path, text: str) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
 
 
 def main(argv: list[str]) -> int:
     action, file, style = argv[0], Path(argv[1]), argv[2]
     start, end = MARKERS[style]
-    text = file.read_text() if file.exists() else ""
+    text = _read(file) if file.exists() else ""
+    if action == "check":
+        try:
+            _span(text, start, end)
+        except ValueError as exc:
+            print(f"{file}: {exc}", file=sys.stderr)
+            return 1
+        return 0
     if action == "upsert":
-        body = Path(argv[3]).read_text()
+        body = _read(Path(argv[3]))
         file.parent.mkdir(parents=True, exist_ok=True)
         new = upsert_block(text, body, start, end)
     elif action == "remove":
@@ -61,7 +90,7 @@ def main(argv: list[str]) -> int:
     else:
         raise SystemExit(f"unknown action {action!r}")
     if new != text or not file.exists():
-        file.write_text(new)
+        _write(file, new)
     return 0
 
 

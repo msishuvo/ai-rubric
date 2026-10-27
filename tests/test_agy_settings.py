@@ -19,6 +19,7 @@ class AgySettingsTest(unittest.TestCase):
     def test_rules_are_read_only_commands(self):
         for risky in ("find", "rg", "tree", "file", "sed", "awk", "git diff", "git log", "git show"):
             self.assertNotIn(f"command({risky})", READ_ONLY_RULES)
+        self.assertFalse([r for r in READ_ONLY_RULES if r.startswith("command(git")])
         self.assertIn("command(cat)", READ_ONLY_RULES)
 
     def test_add_keeps_other_keys(self):
@@ -42,6 +43,13 @@ class AgySettingsTest(unittest.TestCase):
         remove_rules(self.settings, self.state)
         self.assertEqual(self.read(), {"permissions": {"allow": ["command(ls)", "command(make)"]}})
         self.assertFalse(self.state.exists())
+
+    def test_remove_without_state_falls_back_to_known_rules(self):
+        self.settings.write_text(json.dumps({"permissions": {"allow": ["command(make)"]}}))
+        add_rules(self.settings, self.state)
+        self.state.unlink()
+        remove_rules(self.settings, self.state)
+        self.assertEqual(self.read(), {"permissions": {"allow": ["command(make)"]}})
 
     def test_remove_drops_empty_permissions(self):
         self.settings.write_text(json.dumps({"model": "M"}))

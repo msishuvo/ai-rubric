@@ -68,6 +68,12 @@ class MainTest(unittest.TestCase):
             cli.main(["--from", "gemini", "--brief", str(self.brief)])
         self.assertEqual(cm.exception.code, 2)
 
+    def test_run_oserror_exit_2(self):
+        with mock.patch.object(cli, "run_consult", side_effect=PermissionError("read-only fs")):
+            code, _, err = self.call("--from", "claude", "--brief", str(self.brief))
+        self.assertEqual(code, 2)
+        self.assertIn("read-only fs", err)
+
     def test_missing_brief_exit_2(self):
         code, _, err = self.call("--from", "claude", "--brief", "/no/such/brief.md")
         self.assertEqual(code, 2)

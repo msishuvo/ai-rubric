@@ -10,6 +10,7 @@ from unittest import mock
 
 from ai_rubric import discover
 from ai_rubric.config import Config
+from ai_rubric import run as run_module
 from ai_rubric.run import make_run_dir, run_consult
 
 VERDICT = "## Verdict\\nkeep"
@@ -98,6 +99,42 @@ class RunConsultTest(unittest.TestCase):
         self.assertFalse(verdicts[1].ok)
         self.assertTrue(verdicts[1].error.startswith("empty verdict"))
         self.assertIn("required the command permission", verdicts[1].error)
+
+    def test_undecodable_output_does_not_lose_other_verdict(self):
+        body = "sys.stdout.buffer.write(b'\\xff## Verdict'); sys.stdout.flush(); sys.exit(0)"
+        cfg = self.config(cli_paths={"codex": self.fake("codex"),
+                                     "agy": self.fake("agy", body=body)})
+        run_dir, verdicts = run_consult("claude", "Q", str(self.ws), [], cfg)
+        self.assertTrue(verdicts[0].ok)
+        self.assertIn("keep", (run_dir / "codex.md").read_text())
+
+    def test_unexpected_error_in_one_judge_is_contained(self):
+        cfg = self.config(cli_paths={"codex": self.fake("codex"), "agy": self.fake("agy")})
+        real = run_module.build_command
+
+        def boom(judge, *a, **k):
+            if judge.name == "agy":
+                raise RuntimeError("kaboom")
+            return real(judge, *a, **k)
+        with mock.patch.object(run_module, "build_command", boom):
+            _, verdicts = run_consult("claude", "Q", str(self.ws), [], cfg)
+        self.assertTrue(verdicts[0].ok)
+        self.assertFalse(verdicts[1].ok)
+        self.assertIn("kaboom", verdicts[1].error)
+
+    def test_timeout_kills_judge_children(self):
+        pidfile = self.dir / "child.pid"
+        wrapper = self.dir / "fake-agy-wrapper"
+        wrapper.write_text(f"#!/bin/sh\n/bin/sleep 40 &\necho $! > '{pidfile}'\nwait\n")
+        wrapper.chmod(0o755)
+        cfg = self.config(timeout=2, cli_paths={"codex": self.fake("codex"), "agy": str(wrapper)})
+        start = time.monotonic()
+        run_consult("claude", "Q", str(self.ws), [], cfg)
+        self.assertLess(time.monotonic() - start, 10)
+        pid = int(pidfile.read_text())
+        time.sleep(0.5)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
 
     def test_nonzero_exit_captures_stderr(self):
         body = "sys.stderr.write('not logged in\\n'); sys.exit(4)"

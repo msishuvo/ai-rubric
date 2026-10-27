@@ -2,7 +2,7 @@
 
 Headless `agy -p` cannot ask for permission, so any unapproved shell command ends the
 run with no output. Commands with any write or execute option (find -delete, rg --pre,
-tree -o, file -C, sed -i, git diff/log/show --output) are deliberately left out.
+tree -o, file -C, sed -i) and all git subcommands are deliberately left out.
 Plan mode still blocks writes such as shell redirects.
 
 Used by install.sh:  python3 agy_settings.py add|remove SETTINGS STATE
@@ -15,8 +15,9 @@ from pathlib import Path
 READ_ONLY_RULES = [
     "command(ls)", "command(cat)", "command(head)", "command(tail)", "command(wc)",
     "command(grep)", "command(stat)", "command(du)", "command(pwd)",
-    "command(git status)", "command(git ls-files)", "command(git blame)",
 ]
+# No git subcommands: a repository's own config (core.fsmonitor, core.pager, ...) can make
+# even `git status` run arbitrary programs.
 
 
 def _load(path: Path) -> dict:
@@ -41,9 +42,10 @@ def add_rules(settings: Path, state: Path) -> None:
 
 
 def remove_rules(settings: Path, state: Path) -> None:
-    if not state.is_file():
-        return
-    added = set(json.loads(state.read_text()))
+    try:
+        added = set(json.loads(state.read_text()))
+    except (OSError, ValueError):
+        added = set(READ_ONLY_RULES)  # record lost: remove every rule we could have added
     data = _load(settings)
     perms = data.get("permissions", {})
     if "allow" in perms:
@@ -52,8 +54,9 @@ def remove_rules(settings: Path, state: Path) -> None:
             del perms["allow"]
     if "permissions" in data and not data["permissions"]:
         del data["permissions"]
-    _save(settings, data)
-    state.unlink()
+    if settings.is_file():
+        _save(settings, data)
+    state.unlink(missing_ok=True)
 
 
 def main(argv: list[str]) -> int:

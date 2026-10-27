@@ -8,6 +8,19 @@ BLOCKS=(python3 "$REPO/ai_rubric/blocks.py")
 AGY_STATE="$HOME/.local/state/ai-rubric/agy-added.json"
 status=0
 
+# Preflight: change nothing unless every check passes.
+if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
+  echo "ERROR consult needs Python 3.11 or newer as python3; nothing was changed." >&2
+  exit 2
+fi
+for spec in "$HOME/.claude/CLAUDE.md|md" "$HOME/.codex/AGENTS.md|md" \
+            "$HOME/.gemini/GEMINI.md|md" "$HOME/.codex/rules/default.rules|hash"; do
+  if ! "${BLOCKS[@]}" check "${spec%%|*}" "${spec##*|}"; then
+    echo "ERROR fix the ai-rubric markers in ${spec%%|*} by hand; nothing was changed." >&2
+    exit 2
+  fi
+done
+
 LINKS=(
   "$HOME/.claude/skills/consult|$REPO/skills/consult"
   "$HOME/.codex/skills/consult|$REPO/skills/consult"
@@ -87,8 +100,4 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) echo; echo "WARNING $HOME/.local/bin is not on PATH; add it so 'consult' can be found." ;;
 esac
-
-if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
-  echo "WARNING consult needs Python 3.11 or newer as python3."
-fi
 exit $status

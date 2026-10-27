@@ -50,6 +50,10 @@ consult --from <claude|codex> --brief /path/to/brief.md [--add-dir DIR ...]
   background or with a long timeout; do not poll it in a tight loop.
 - In Codex, the command has to run outside the sandbox (judges need the
   network). The installer adds an allow rule for `consult`.
+- If running `consult` is refused or blocked by an approval policy or reviewer,
+  stop and tell the user it was blocked and why; they must approve it or change
+  their policy. Do not retry inside the sandbox (the judges would have no
+  network) and do not work around the block.
 
 Exit codes: `0` at least one verdict, `1` both judges failed, `2` usage or
 config error, `3` the brief was refused.

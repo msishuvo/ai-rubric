@@ -27,11 +27,19 @@ The installer:
 - adds a marked rule block to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`
   and `~/.gemini/GEMINI.md`
 - allows `consult` in `~/.codex/rules/default.rules`
+- pre-approves a few read-only shell commands (`ls`, `cat`, `head`, `tail`,
+  `wc`, `grep`, `stat`, `du`, `pwd`) in Antigravity's global
+  `~/.gemini/antigravity-cli/settings.json`. Headless Antigravity cannot ask
+  for permission, and without these the Antigravity judge stops with no
+  answer. They apply to all your Antigravity sessions.
 - reports which judge CLIs it found
 
-Running it again changes nothing. It never edits text outside its own
-`ai-rubric start/end` markers. Needs Python 3.11+, and `claude`, `codex` and
-`agy`, each logged in.
+It checks Python and the existing markers first and changes nothing if either
+is wrong. Running it again changes nothing. In the markdown and rules files it
+only edits text between its own `ai-rubric start/end` markers; in
+Antigravity's settings it adds only its own entries and removes only those.
+Needs Python 3.11+ as `python3`, and `claude`, `codex` and `agy`, each logged
+in.
 
 ## When it runs
 
@@ -42,6 +50,10 @@ lookups, small edits or clear bugs.
 
 - Force it: "consult", "council this" or `/consult`.
 - Skip it: "no council".
+
+In Codex, `consult` has to run outside the sandbox because the judges need
+the network. If your Codex approval settings block it, Codex will tell you;
+approve the run, or change the policy yourself.
 
 ## Running it by hand
 

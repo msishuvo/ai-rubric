@@ -25,7 +25,8 @@ class SkillFileTest(unittest.TestCase):
             self.assertIn(needle, self.body)
 
     def test_body_keeps_brief_exclusions_and_no_substitute(self):
-        for needle in ("who wrote", "lean", "Never run a substitute", "unresolved"):
+        for needle in ("who wrote", "lean", "Never run a substitute", "unresolved",
+                       "blocked by an approval", "Do not retry inside the sandbox"):
             self.assertIn(needle, self.body)
 
 

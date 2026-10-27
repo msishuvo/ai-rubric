@@ -45,7 +45,7 @@ def main(argv: list[str]) -> int:
         return 3
     try:
         run_dir, verdicts = run_consult(args.host, brief, os.getcwd(), args.add_dir, config)
-    except RuntimeError as exc:
+    except (RuntimeError, OSError) as exc:
         print(f"consult: {exc}", file=sys.stderr)
         return 2
     for v in verdicts:

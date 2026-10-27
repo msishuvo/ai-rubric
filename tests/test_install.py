@@ -31,6 +31,31 @@ class BlocksTest(unittest.TestCase):
                              original if original.endswith("\n") or not original else original + "\n")
 
 
+class BlocksFileTest(unittest.TestCase):
+    def test_crlf_file_round_trips_byte_for_byte(self):
+        import sys
+        from ai_rubric import blocks
+        with tempfile.TemporaryDirectory() as d:
+            f, frag = Path(d, "CLAUDE.md"), Path(d, "frag.md")
+            original = "# Mine\r\nkeep \u00f8\r\n".encode("utf-8")
+            f.write_bytes(original)
+            frag.write_text("body\n")
+            blocks.main(["upsert", str(f), "md", str(frag)])
+            installed = f.read_bytes()
+            self.assertNotIn(b"\n<!--", installed.replace(b"\r\n", b""))
+            blocks.main(["remove", str(f), "md"])
+            self.assertEqual(f.read_bytes(), original)
+
+    def test_check_rejects_unclosed_marker(self):
+        from ai_rubric import blocks
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d, "CLAUDE.md")
+            f.write_text("x\n<!-- ai-rubric start -->\nhalf\n")
+            self.assertEqual(blocks.main(["check", str(f), "md"]), 1)
+            f.write_text("x\n")
+            self.assertEqual(blocks.main(["check", str(f), "md"]), 0)
+
+
 class InstallScriptTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -114,6 +139,26 @@ class InstallScriptTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertEqual(target.read_text(), "mine")
         self.assertIn("left alone", proc.stdout + proc.stderr)
+
+    def test_old_python_aborts_before_any_change(self):
+        shim = Path(self.tmp.name, "oldpy")
+        shim.mkdir()
+        (shim / "python3").write_text("#!/bin/sh\nexit 1\n")
+        (shim / "python3").chmod(0o755)
+        env = {**os.environ, "HOME": str(self.home), "PATH": f"{shim}:/usr/bin:/bin"}
+        proc = subprocess.run(["bash", str(self.repo / "install.sh")], capture_output=True,
+                              text=True, env=env)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("3.11", proc.stdout + proc.stderr)
+        self.assertEqual(list(self.home.rglob("*")), [])
+
+    def test_broken_marker_aborts_before_any_change(self):
+        (self.home / ".claude").mkdir()
+        (self.home / ".claude/CLAUDE.md").write_text("<!-- ai-rubric start -->\nhalf\n")
+        proc = self.run_install()
+        self.assertEqual(proc.returncode, 2)
+        self.assertFalse((self.home / ".claude/skills").exists())
+        self.assertFalse((self.home / ".local").exists())
 
     def test_uninstall_leaves_foreign_symlinks(self):
         self.run_install()
