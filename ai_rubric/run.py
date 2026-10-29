@@ -5,16 +5,18 @@ import re
 import signal
 import subprocess
 import time
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
 from .commands import build_command
+from .auth import authentication_error
 from .config import Config
 from .discover import find_cli
 from .judges import Judge, judges_for
 from .prompt import build_prompt
+from . import recovery
 
 
 @dataclass
@@ -25,6 +27,7 @@ class Verdict:
     text: str
     error: str | None
     seconds: float
+    error_kind: str | None = None
 
 
 def _slug(brief: str) -> str:
@@ -89,16 +92,18 @@ def _run_one(judge: Judge, config: Config, prompt: str, cwd: str,
              add_dirs: list[str], run_dir: Path, log: list[str]) -> Verdict:
     start = time.monotonic()
 
-    def done(ok: bool, text: str = "", error: str | None = None) -> Verdict:
+    def done(ok: bool, text: str = "", error: str | None = None,
+             error_kind: str | None = None) -> Verdict:
         secs = round(time.monotonic() - start, 1)
         log.append(f"{judge.name}: ok={ok} seconds={secs} error={error}")
-        return Verdict(judge.name, judge.model, ok, text, error, secs)
+        return Verdict(judge.name, judge.model, ok, text, error, secs, error_kind)
 
     try:
         cli = find_cli(judge.name, config)
         if cli is None:
             return done(False, error=f"{judge.name} CLI not found")
         out_file = run_dir / f".{judge.name}-last-message.md"
+        out_file.unlink(missing_ok=True)
         argv = build_command(judge, cli, prompt, cwd, add_dirs, str(out_file))
         log.append(f"{judge.name}: argv={[a if a != prompt else '<prompt>' for a in argv]}")
         try:
@@ -106,7 +111,9 @@ def _run_one(judge: Judge, config: Config, prompt: str, cwd: str,
         except subprocess.TimeoutExpired:
             return done(False, error=f"timed out after {config.timeout}s")
         if code != 0:
-            return done(False, error=f"exit {code}: {_tail(stderr or stdout)}")
+            kind = "authentication_required" if authentication_error(judge.name, stdout, stderr) else None
+            message = "\n".join(part for part in (stdout, stderr) if part)
+            return done(False, error=f"exit {code}: {_tail(message)}", error_kind=kind)
         if out_file.is_file():
             text = out_file.read_bytes().decode("utf-8", errors="replace")
             out_file.unlink()
@@ -120,9 +127,7 @@ def _run_one(judge: Judge, config: Config, prompt: str, cwd: str,
         return done(False, error=f"{type(exc).__name__}: {exc}")
 
 
-def run_consult(host: str, brief: str, cwd: str, add_dirs: list[str],
-                config: Config) -> tuple[Path, list[Verdict]]:
-    judges = judges_for(host)
+def _pre_run(config: Config) -> None:
     if config.pre_run:
         try:
             pre = subprocess.run(config.pre_run, capture_output=True, text=True)
@@ -131,19 +136,59 @@ def run_consult(host: str, brief: str, cwd: str, add_dirs: list[str],
         if pre.returncode != 0:
             raise RuntimeError(f"pre_run command {config.pre_run} failed "
                                f"(exit {pre.returncode}): {_tail(pre.stderr or pre.stdout)}")
+
+
+def _export_verdict(run_dir: Path, verdict: Verdict) -> None:
+    path = run_dir / f"{verdict.judge}.md"
+    text = verdict.text if verdict.ok else f"FAILED: {verdict.error}\n"
+    if not path.exists() or path.read_bytes() != text.encode("utf-8"):
+        recovery.write_text(path, text)
+
+
+def _execute(run_dir: Path, state: dict, config: Config) -> list[Verdict]:
+    judges = judges_for(state["host"])
+    verdicts = [Verdict(**record) for record in state["verdicts"]]
+    # Repair exports after a prior interruption without invoking successful judges.
+    for verdict in verdicts:
+        if verdict.ok:
+            _export_verdict(run_dir, verdict)
+    pending = [(i, judge) for i, judge in enumerate(judges) if not verdicts[i].ok]
+    if not pending:
+        return verdicts
+    prompt = (run_dir / "prompt.md").read_bytes().decode("utf-8")
+    log_path = run_dir / "run.log"
+    log = log_path.read_text(encoding="utf-8").splitlines() if log_path.exists() else []
+    log.append(f"attempt: judges={[j.name for _, j in pending]} time={datetime.now().isoformat()}")
+    recovery.save_run(run_dir, state)
+    with ThreadPoolExecutor(max_workers=len(pending)) as pool:
+        futures = {pool.submit(_run_one, judge, config, prompt, state["cwd"],
+                               state["extra_dirs"], run_dir, log): i for i, judge in pending}
+        for future in as_completed(futures):
+            i = futures[future]
+            v = verdicts[i] = future.result()
+            state["verdicts"][i] = asdict(v)
+            # Commit the result before exporting it; resume must never rerun a saved success.
+            recovery.save_run(run_dir, state)
+            _export_verdict(run_dir, v)
+            log_path.write_text("\n".join(log) + "\n", encoding="utf-8")
+    return verdicts
+
+
+def run_consult(host: str, brief: str, cwd: str, add_dirs: list[str],
+                config: Config) -> tuple[Path, list[Verdict]]:
+    judges = judges_for(host)
+    _pre_run(config)
     cwd = os.path.abspath(os.path.expanduser(cwd))
     roots = _roots(cwd, add_dirs, config.extra_dirs)
     extra = [r for r in roots if r != cwd]
     prompt = build_prompt(brief, roots)
     run_dir = make_run_dir(config.save_root, brief, datetime.now())
-    (run_dir / "brief.md").write_text(brief)
-    (run_dir / "prompt.md").write_text(prompt)
-    log: list[str] = [f"host={host} cwd={cwd} roots={roots} timeout={config.timeout}"]
-    with ThreadPoolExecutor(max_workers=len(judges)) as pool:
-        futures = [pool.submit(_run_one, j, config, prompt, cwd, extra, run_dir, log)
-                   for j in judges]
-        verdicts = [f.result() for f in futures]
-    for v in verdicts:
-        (run_dir / f"{v.judge}.md").write_text(v.text if v.ok else f"FAILED: {v.error}\n")
-    (run_dir / "run.log").write_text("\n".join(log) + "\n")
-    return run_dir, verdicts
+    with recovery.run_lock(run_dir):
+        (run_dir / "brief.md").write_text(brief, encoding="utf-8")
+        (run_dir / "prompt.md").write_text(prompt, encoding="utf-8")
+        (run_dir / "run.log").write_text(
+            f"host={host} cwd={cwd} roots={roots} timeout={config.timeout}\n", encoding="utf-8")
+        state = {"version": 1, "host": host, "cwd": cwd, "extra_dirs": extra,
+                 "started_at": time.time(), "verdicts": [
+                     asdict(Verdict(j.name, j.model, False, "", "not completed", 0.0)) for j in judges]}
+        return run_dir, _execute(run_dir, state, config)

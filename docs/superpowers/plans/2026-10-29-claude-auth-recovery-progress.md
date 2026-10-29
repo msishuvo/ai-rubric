@@ -1,0 +1,19 @@
+# Execution ledger — 2026-10-29-claude-auth-recovery.md
+
+- Pre-flight: Task 1 Verdict.error_kind feeds Task 2 persistence and Task 3 login eligibility; use optional str, default None throughout.
+- Pre-flight: Task 2 resume_consult feeds Task 3 --resume; both consume Path and Config and return the existing (Path, list[Verdict]) shape.
+- Ruling: Execute inline under the existing implementation approval, without another method/plan approval round; one independent reviewer checks the final diff.
+- Ruling: Native worktree created; the skill's bookkeeping helper could not write to its protected directory and looped. Stopped that helper and use this explicit ledger instead. Tests and apply_patch work in the native checkout.
+- Consultation: both judges say change; skip routine preflight, preserve successful verdicts, classify conservatively, disclose workspace drift. Keep explicit post-login auth-source verification to guard subscription billing despite both judges suggesting it be removed.
+- Task 1 complete: new tests failed for missing authentication module and Verdict.error_kind, then full suite passed 79 tests.
+- Task 2 RED: recovery tests failed for missing recovery module. Regression caught path aliasing under macOS /var vs /private/var; preserve the caller's run path and compare child cwd by filesystem identity.
+- Task 3 RED: login tests failed for missing login_claude; CLI/recovery tests failed for missing resume flags, login keyword, and partial labeling. Login unit tests passed after implementation; combined suite pending.
+- Ruling: Skip editing the consult skill. A fresh reference-application test using the current skill plus new CLI help correctly chose --resume --login, preserved the successful judge, warned about live workspace, and handled terminal/approval failure. The writing-skills baseline found no instruction failure to fix.
+- Ruling: Disclose live-workspace drift on every resume instead of scanning/hashing arbitrary workspace trees. A retry is explicitly labeled as potentially using different evidence; users need a fresh consultation after edits.
+- Tasks 2 and 3 complete: full suite passed 104 tests; exact prompt bytes, resume context, CLI round trip, terminal login, billing-source check, checkpoint visibility, locks, and malformed-state guards verified.
+- Final review: one Important checkpoint ordering issue and one Minor malformed numeric overflow. Reproduced checkpoint/export failures with two RED regression tests; fixed by committing the authoritative manifest before atomically exporting verdicts and repairing stale/missing exports without reruns. Full suite passed 106 tests.
+- Final: minor resolved at the user's request: a subprocess regression reproduced OverflowError for oversized started_at and each judge's seconds. Validation now converts the overflow into the existing actionable saved-run error, preserving manifests and verdicts and releasing the lock.
+- Final: Ruling: Live provider sign-in not exercised by tests; the actual fixed-judge consultation succeeded for both judges, installed login flags were inspected, and fake CLIs exercise the recovery flow without expiring the user's credentials.
+- Delivery: apply reviewed files as uncommitted changes in the original checkout, which the installed consult symlink uses. No commit, branch merge, push, or publication is needed for this local implementation.
+- Follow-up: user explicitly requested fixing the minor, confirming installed updates, and pushing. Commit and push the complete recovery feature from the original checkout after verification.
+- Follow-up verification: all 107 tests pass. Installed CLI and Claude/Codex skill links resolve to this checkout; installed --help exposes --resume and --login with Python 3.12. The Codex shell selects Python 3.9 by default, so its command needs PATH=/opt/miniconda3/bin:$PATH; no global runtime setting was changed.

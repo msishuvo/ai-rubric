@@ -87,6 +87,48 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("brief", err)
 
+    def test_resume_accepts_saved_run_without_a_new_brief_or_host(self):
+        with mock.patch.object(cli, "resume_consult", create=True, return_value=self.verdicts(True, True)):
+            code, out, _ = self.call("--resume", "/saved/run")
+        self.assertEqual(code, 0)
+        self.assertIn("live workspace", out)
+        self.assertIn("Saved: /saved/run", out)
+
+    def test_resume_rejects_new_context_flags(self):
+        for flags in (("--from", "codex"), ("--add-dir", self.tmp.name), ("--allow-flagged",)):
+            with self.subTest(flags=flags):
+                code, _, err = self.call("--resume", "/saved/run", *flags)
+                self.assertEqual(code, 2)
+                self.assertIn("saved context", err)
+
+    def test_login_requires_resume(self):
+        code, _, err = self.call("--from", "codex", "--brief", str(self.brief), "--login")
+        self.assertEqual(code, 2)
+        self.assertIn("--resume", err)
+
+    def test_fresh_run_still_requires_host(self):
+        code, _, err = self.call("--brief", str(self.brief))
+        self.assertEqual(code, 2)
+        self.assertIn("--from", err)
+
+    def test_partial_auth_failure_prints_quoted_recovery_commands(self):
+        verdicts = [Verdict("claude", "claude-opus-5-5", False, "", "Login expired", 1.0,
+                            "authentication_required"),
+                    Verdict("agy", "gemini-4-argon-high", True, "keep", None, 1.0)]
+        with mock.patch.object(cli, "run_consult", return_value=(Path("/saved/run with spaces"), verdicts)):
+            code, out, _ = self.call("--from", "codex", "--brief", str(self.brief))
+        self.assertEqual(code, 0)
+        self.assertIn("PARTIAL: 1 of 2 judges", out)
+        self.assertIn("auth login --claudeai", out)
+        self.assertIn("consult --resume '/saved/run with spaces'", out)
+        self.assertIn("--login", out)
+
+    def test_resume_failure_is_actionable_exit_2(self):
+        with mock.patch.object(cli, "resume_consult", create=True, side_effect=RuntimeError("bad manifest")):
+            code, _, err = self.call("--resume", "/saved/run")
+        self.assertEqual(code, 2)
+        self.assertIn("bad manifest", err)
+
     def test_bin_works_through_symlink(self):
         link = Path(self.tmp.name, "consult")
         link.symlink_to(REPO / "bin" / "consult")

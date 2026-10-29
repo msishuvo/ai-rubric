@@ -64,6 +64,37 @@ brief must not say who wrote the proposal or which way anyone leans; the
 script refuses briefs that look like they do (exit 3). Pass
 `--allow-flagged` only when the flagged words are the subject itself.
 
+### Recovering an expired Claude sign-in
+
+When Claude reports an expired login, `consult` keeps the other judge's verdict
+and prints recovery commands. In an interactive terminal, use the printed saved
+run directory:
+
+    consult --resume '/path/to/saved/run' --login
+
+This starts `claude auth login --claudeai` using the configured/discovered Claude
+CLI. Complete the browser sign-in yourself. The command checks that subscription
+authentication is active, then retries only the failed judges once. It never
+substitutes a model or falls back to API billing. Successful verdict files stay
+untouched, and previous failure messages remain in `run.log`.
+
+Alternatively, sign in yourself with `claude auth login --claudeai`, then run:
+
+    consult --resume '/path/to/saved/run'
+
+Plain `--resume` also retries other judge failures. It uses the original saved
+prompt, working directory and extra folders; omit `--from`, `--brief` and
+`--add-dir`. If you used a custom `--config`, the printed recovery commands keep
+that argument. Login only starts with explicit `--login` and interactive input
+and output; background runs print instructions instead of opening a browser.
+
+The judges read the live workspace. If files changed since the original run,
+start a fresh consultation for comparable verdicts. A partial result is labeled
+`PARTIAL`; the existing exit code stays 0 when at least one judge succeeded.
+Runs created before this feature have no `run.json` and need a fresh consultation.
+If a process was forcibly killed, remove its `.run.lock` only after confirming
+that the consultation is no longer running.
+
 | Exit | Meaning |
 |---|---|
 | 0 | at least one verdict |
@@ -74,7 +105,8 @@ script refuses briefs that look like they do (exit 3). Pass
 ## Where results go
 
 `~/.local/state/ai-rubric/consultations/<time>-<slug>/` holds `brief.md`,
-`prompt.md`, one verdict file per judge, and `run.log`.
+`prompt.md`, one verdict file per judge, `run.log`, and the `run.json` recovery
+manifest. Results are checkpointed as each judge finishes.
 
 ## Config (optional)
 

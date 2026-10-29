@@ -158,6 +158,33 @@ class RunConsultTest(unittest.TestCase):
         self.assertIn("not logged in", verdicts[1].error)
         self.assertIn("exit 4", verdicts[1].error)
 
+    def test_auth_failure_on_stdout_is_classified_despite_stderr_warning(self):
+        body = ("sys.stdout.write('Failed to authenticate: OAuth session expired and could not be refreshed'); "
+                "sys.stderr.write('warning: update available'); sys.exit(1)")
+        cfg = self.config(cli_paths={"claude": self.fake("claude", body=body),
+                                     "agy": self.fake("agy")})
+        run_dir, verdicts = run_consult("codex", "Q", str(self.ws), [], cfg)
+        self.assertFalse(verdicts[0].ok)
+        self.assertEqual(verdicts[0].error_kind, "authentication_required")
+        self.assertIn("OAuth session expired", verdicts[0].error)
+        self.assertTrue(verdicts[1].ok)
+        self.assertIn("keep", (run_dir / "agy.md").read_text())
+
+    def test_successful_verdict_discussing_authentication_stays_successful(self):
+        cfg = self.config(cli_paths={"claude": self.fake("claude", text="Recommend handling Login expired · Please run /login"),
+                                     "agy": self.fake("agy")})
+        _, verdicts = run_consult("codex", "Q", str(self.ws), [], cfg)
+        self.assertTrue(verdicts[0].ok)
+        self.assertIsNone(verdicts[0].error_kind)
+
+    def test_saved_prompt_keeps_carriage_returns_on_initial_run(self):
+        seen = self.dir / "prompt.bin"
+        body = f"open({str(seen)!r}, 'wb').write(args[1].encode('utf-8'))"
+        cfg = self.config(cli_paths={"claude": self.fake("claude", body=body),
+                                     "agy": self.fake("agy")})
+        run_dir, _ = run_consult("codex", "Question\r\nwith original newlines", str(self.ws), [], cfg)
+        self.assertEqual(seen.read_bytes(), (run_dir / "prompt.md").read_bytes())
+
     def test_pre_run_failure_aborts(self):
         cfg = self.config(pre_run=["/usr/bin/false"], cli_paths={"codex": self.fake("codex"),
                                                          "agy": self.fake("agy")})
