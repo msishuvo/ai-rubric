@@ -20,6 +20,19 @@ def authentication_error(judge: str, stdout: str, stderr: str) -> bool:
     ))
 
 
+def usage_limit_error(judge: str, stdout: str, stderr: str) -> bool:
+    """A subscription usage limit on the other host's model; Gemini never stands down."""
+    if judge not in ("claude", "codex"):
+        return False
+    # Only the last lines: Codex echoes the brief first, and a brief may mention limits.
+    # Per stream: Claude prints its error on stdout, then warnings on stderr.
+    text = "\n".join(stdout.strip().splitlines()[-3:] + stderr.strip().splitlines()[-3:]).lower()
+    # shortcut: Codex wording verified live, Claude's is not; add a marker if a Claude limit slips through.
+    return any(marker in text for marker in (
+        "usage limit", "hit your limit", "5-hour limit reached", "weekly limit reached",
+    ))
+
+
 def login_claude(config: Config, cwd: str) -> None:
     """Run an explicitly requested subscription login in the caller's terminal."""
     if not (sys.stdin.isatty() and sys.stdout.isatty()):

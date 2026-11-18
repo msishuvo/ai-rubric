@@ -31,6 +31,43 @@ class BlocksTest(unittest.TestCase):
                              original if original.endswith("\n") or not original else original + "\n")
 
 
+class AtomicWriteTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+
+    def test_failed_write_leaves_original_and_no_temp_file(self):
+        from unittest import mock
+        from ai_rubric import blocks
+        f = self.dir / "CLAUDE.md"
+        f.write_text("precious\n")
+        with mock.patch("os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                blocks.write_atomic(f, "new\n")
+        self.assertEqual(f.read_text(), "precious\n")
+        self.assertEqual([p.name for p in self.dir.iterdir()], ["CLAUDE.md"])
+
+    def test_symlinked_file_stays_a_link_and_keeps_its_mode(self):
+        from ai_rubric import blocks
+        real = self.dir / "dotfiles" / "CLAUDE.md"
+        real.parent.mkdir()
+        real.write_text("old\n")
+        real.chmod(0o640)
+        link = self.dir / "CLAUDE.md"
+        link.symlink_to(real)
+        blocks.write_atomic(link, "new\n")
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(real.read_text(), "new\n")
+        self.assertEqual(real.stat().st_mode & 0o777, 0o640)
+
+    def test_new_file_is_readable_like_a_normal_file(self):
+        from ai_rubric import blocks
+        f = self.dir / "AGENTS.md"
+        blocks.write_atomic(f, "x\n")
+        self.assertEqual(f.stat().st_mode & 0o777, 0o644)
+
+
 class BlocksFileTest(unittest.TestCase):
     def test_crlf_file_round_trips_byte_for_byte(self):
         import sys
@@ -159,6 +196,31 @@ class InstallScriptTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertFalse((self.home / ".claude/skills").exists())
         self.assertFalse((self.home / ".local").exists())
+
+    def test_unreadable_antigravity_settings_abort_before_any_change(self):
+        settings = self.home / ".gemini/antigravity-cli/settings.json"
+        settings.parent.mkdir(parents=True)
+        for broken in ('{ // comment\n"x": 1 }', '["not", "an", "object"]'):
+            with self.subTest(broken=broken):
+                settings.write_text(broken)
+                before = self.snapshot()
+                proc = self.run_install()
+                self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+                self.assertIn("nothing was changed", proc.stderr)
+                self.assertNotIn("Traceback", proc.stderr)
+                self.assertEqual(self.snapshot(), before)
+
+    def test_uninstall_still_removes_everything_else_when_antigravity_settings_are_broken(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        settings = self.home / ".gemini/antigravity-cli/settings.json"
+        settings.write_text('{ // comment\n"x": 1 }')
+        proc = self.run_install("--uninstall")
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn(str(settings), proc.stderr)
+        self.assertFalse((self.home / ".claude/skills/consult").exists())
+        self.assertNotIn("ai-rubric", (self.home / ".claude/CLAUDE.md").read_text())
+        self.assertEqual(settings.read_text(), '{ // comment\n"x": 1 }')
 
     def test_uninstall_leaves_foreign_symlinks(self):
         self.run_install()

@@ -9,11 +9,13 @@ knowing who wrote it, and gives a verdict.
 
 | Host you are in | Judges |
 |---|---|
-| Claude Code | Codex `gpt-6-astra` (medium) and Antigravity `gemini-4-argon-high` |
-| Codex | Claude `claude-opus-5-5` (medium) and Antigravity `gemini-4-argon-high` |
+| Claude Code | Codex `gpt-6.2-astra` (high) and Antigravity `gemini-4-neon-high` |
+| Codex | Claude `claude-opus-5-5` (high) and Antigravity `gemini-4-neon-high` |
 
-The models are fixed in code (`ai_rubric/judges.py`). If a judge can't run,
-it is reported as failed and nothing replaces it.
+The models are fixed in code (`ai_rubric/judges.py`). If Codex or Claude
+fails because it hit its usage limit, Antigravity `gemini-4-argon-high` runs
+in its place, so you still get two verdicts: Neon and Argon. Any other
+failure is reported as failed and nothing replaces it.
 
 ## Install, once per machine
 
@@ -75,7 +77,8 @@ run directory:
 This starts `claude auth login --claudeai` using the configured/discovered Claude
 CLI. Complete the browser sign-in yourself. The command checks that subscription
 authentication is active, then retries only the failed judges once. It never
-substitutes a model or falls back to API billing. Successful verdict files stay
+falls back to API billing, and substitutes a model only through the Argon
+stand-in described under Judges. Successful verdict files stay
 untouched, and previous failure messages remain in `run.log`.
 
 Alternatively, sign in yourself with `claude auth login --claudeai`, then run:
@@ -101,6 +104,7 @@ that the consultation is no longer running.
 | 1 | both judges failed |
 | 2 | usage, config or pre-run error |
 | 3 | brief refused |
+| 130 | cancelled (Ctrl-C, SIGTERM or SIGHUP); judges stopped, `--resume` retries them |
 
 ## Where results go
 

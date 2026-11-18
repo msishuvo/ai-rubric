@@ -6,7 +6,10 @@ Reads and writes UTF-8 with newlines untranslated, and matches the file's line e
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 MARKERS = {
@@ -63,9 +66,24 @@ def _read(path: Path) -> str:
         return f.read()
 
 
-def _write(path: Path, text: str) -> None:
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
+def write_atomic(path: Path, text: str) -> None:
+    """Replace the file in one step so an interrupted write cannot truncate it.
+
+    Writes through a link (dotfile setups) and keeps the file's mode.
+    """
+    target = Path(os.path.realpath(path))
+    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        if target.exists():
+            shutil.copymode(target, tmp)
+        else:
+            os.chmod(tmp, 0o644)
+        os.replace(tmp, target)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def main(argv: list[str]) -> int:
@@ -90,7 +108,7 @@ def main(argv: list[str]) -> int:
     else:
         raise SystemExit(f"unknown action {action!r}")
     if new != text or not file.exists():
-        _write(file, new)
+        write_atomic(file, new)
     return 0
 
 

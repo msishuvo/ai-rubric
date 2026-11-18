@@ -5,12 +5,17 @@ run with no output. Commands with any write or execute option (find -delete, rg 
 tree -o, file -C, sed -i) and all git subcommands are deliberately left out.
 Plan mode still blocks writes such as shell redirects.
 
-Used by install.sh:  python3 agy_settings.py add|remove SETTINGS STATE
+Used by install.sh:  python3 agy_settings.py add|remove|check SETTINGS STATE
 """
 
 import json
 import sys
 from pathlib import Path
+
+try:
+    from .blocks import write_atomic
+except ImportError:  # run as a script by install.sh
+    from blocks import write_atomic
 
 READ_ONLY_RULES = [
     "command(ls)", "command(cat)", "command(head)", "command(tail)", "command(wc)",
@@ -40,7 +45,7 @@ def _indent(path: Path) -> int:
 def _save(path: Path, data: dict) -> None:
     indent = _indent(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=indent, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_atomic(path, json.dumps(data, indent=indent, ensure_ascii=False) + "\n")
 
 
 def add_rules(settings: Path, state: Path) -> None:
@@ -75,7 +80,17 @@ def remove_rules(settings: Path, state: Path) -> None:
 
 def main(argv: list[str]) -> int:
     action, settings, state = argv[0], Path(argv[1]), Path(argv[2])
-    {"add": add_rules, "remove": remove_rules}[action](settings, state)
+    if action == "check":  # the installer's preflight: a file we can read and rewrite
+        try:
+            return 0 if isinstance(_load(settings), dict) else 1
+        except (OSError, ValueError):
+            return 1
+    try:
+        {"add": add_rules, "remove": remove_rules}[action](settings, state)
+    except (OSError, ValueError) as exc:  # ValueError: not valid JSON
+        print(f"{settings}: {exc}. Edit it by hand: the ai-rubric entries are the read-only "
+              f"command(...) allow rules.", file=sys.stderr)
+        return 1
     return 0
 
 

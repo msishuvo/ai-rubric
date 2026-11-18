@@ -25,6 +25,15 @@ class LoadConfigTest(unittest.TestCase):
         self.assertEqual(cfg.cli_paths, {"codex": "/tmp/fake"})
         self.assertEqual(cfg.pre_run, ["true"])
 
+    def test_non_positive_timeout_rejected(self):
+        for value in ("0", "-5"):
+            with tempfile.TemporaryDirectory() as d:
+                p = Path(d, "config.toml")
+                p.write_text(f"timeout = {value}\n")
+                with self.assertRaises(ValueError) as cm:
+                    load_config(p)
+                self.assertIn("timeout", str(cm.exception))
+
     def test_model_key_rejected(self):
         for text in ('model = "x"\n', '[cli]\neffort = "high"\n'):
             with tempfile.TemporaryDirectory() as d:

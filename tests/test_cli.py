@@ -91,7 +91,6 @@ class MainTest(unittest.TestCase):
         with mock.patch.object(cli, "resume_consult", create=True, return_value=self.verdicts(True, True)):
             code, out, _ = self.call("--resume", "/saved/run")
         self.assertEqual(code, 0)
-        self.assertIn("live workspace", out)
         self.assertIn("Saved: /saved/run", out)
 
     def test_resume_rejects_new_context_flags(self):
@@ -122,6 +121,20 @@ class MainTest(unittest.TestCase):
         self.assertIn("auth login --claudeai", out)
         self.assertIn("consult --resume '/saved/run with spaces'", out)
         self.assertIn("--login", out)
+
+    def test_cancel_names_the_folder_to_resume(self):
+        def interrupted(*a, **k):
+            exc = KeyboardInterrupt()
+            exc.run_dir = Path("/saved/run with spaces")
+            raise exc
+        with mock.patch.object(cli, "run_consult", side_effect=interrupted):
+            code, _, err = self.call("--from", "codex", "--brief", str(self.brief))
+        self.assertEqual(code, 130)
+        self.assertIn("consult --resume '/saved/run with spaces'", err)
+        with mock.patch.object(cli, "resume_consult", side_effect=KeyboardInterrupt):
+            code, _, err = self.call("--resume", "/saved/run")
+        self.assertEqual(code, 130)
+        self.assertIn("consult --resume /saved/run", err)
 
     def test_resume_failure_is_actionable_exit_2(self):
         with mock.patch.object(cli, "resume_consult", create=True, side_effect=RuntimeError("bad manifest")):

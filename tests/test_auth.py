@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from ai_rubric import auth, discover
-from ai_rubric.auth import authentication_error
+from ai_rubric.auth import authentication_error, usage_limit_error
 from ai_rubric.config import Config
 
 
@@ -33,6 +33,35 @@ class AuthenticationErrorTest(unittest.TestCase):
             with self.subTest(message=message):
                 self.assertFalse(authentication_error("claude", "", message))
         self.assertFalse(authentication_error("agy", "Login expired · Please run /login", ""))
+
+
+class UsageLimitErrorTest(unittest.TestCase):
+    def test_usage_limits_of_host_models_are_recognized(self):
+        for judge, message in (("codex", "You've hit your usage limit. Try again at 3:05 PM."),
+                               ("claude", "You've hit your limit · resets 3pm (Europe/Berlin)"),
+                               ("claude", "Claude AI usage limit reached|1767225600"),
+                               ("claude", "5-hour limit reached ∙ resets 3pm")):
+            with self.subTest(judge=judge, message=message):
+                self.assertTrue(usage_limit_error(judge, "", message))
+
+    def test_other_failures_and_gemini_are_not_usage_limits(self):
+        for message in ("connection timed out", "Login expired · Please run /login",
+                        "429 rate limit, retrying", "context window limit exceeded"):
+            with self.subTest(message=message):
+                self.assertFalse(usage_limit_error("codex", "", message))
+        self.assertFalse(usage_limit_error("agy", "You've hit your usage limit", ""))
+
+    def test_limit_on_stdout_survives_stderr_warnings(self):
+        warnings = "\n".join(f"Warning: line {i}" for i in range(5))
+        self.assertTrue(usage_limit_error("claude", "You've hit your limit \u00b7 resets 3pm", warnings))
+        self.assertTrue(usage_limit_error("codex", "", warnings + "\nERROR: usage limit reached"))
+
+    def test_echoed_brief_mentioning_a_usage_limit_is_ignored(self):
+        echoed = "# Brief\nHow should the app warn users near their usage limit?\n"
+        crash = echoed + "hook: SessionStart\nhook: SessionStart\nhook: SessionStart\nERROR: stream disconnected"
+        self.assertFalse(usage_limit_error("codex", "", crash))
+        real = echoed + "hook: SessionStart\nERROR: You\u2019ve hit your usage limit. Try again later."
+        self.assertTrue(usage_limit_error("codex", "", real))
 
 
 class InteractiveLoginTest(unittest.TestCase):

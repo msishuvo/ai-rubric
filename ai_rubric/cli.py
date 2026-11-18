@@ -3,6 +3,7 @@
 import argparse
 import os
 import shlex
+import signal
 import sys
 from pathlib import Path
 
@@ -34,8 +35,19 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+def _resume_command(run_dir, config_arg: str | None) -> list[str]:
+    command = ["consult", "--resume", str(run_dir)]
+    if config_arg:
+        command.extend(["--config", str(Path(config_arg).absolute())])
+    return command
+
+
 def main(argv: list[str]) -> int:
     args = _parser().parse_args(argv)
+    # A host stopping a background run sends SIGTERM (or SIGHUP): take the Ctrl-C path so judges stop.
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        if signal.getsignal(sig) != signal.SIG_IGN:  # keep a deliberate `nohup`
+            signal.signal(sig, signal.default_int_handler)
     if args.resume and (args.host or args.add_dir or args.allow_flagged):
         print("consult: --resume uses saved context; omit --from, --add-dir, and --allow-flagged", file=sys.stderr)
         return 2
@@ -63,35 +75,37 @@ def main(argv: list[str]) -> int:
             return 3
     try:
         if args.resume:
-            print("Resuming the saved prompt against the live workspace. Completed judges will not rerun; "
-                  "if files changed, start a fresh consultation for comparable verdicts.")
             run_dir, verdicts = resume_consult(Path(args.resume), config, login=args.login)
         else:
             run_dir, verdicts = run_consult(args.host, brief, os.getcwd(), args.add_dir, config)
     except (RuntimeError, OSError) as exc:
         print(f"consult: {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt as exc:
+        run_dir = getattr(exc, "run_dir", None) or args.resume  # fresh runs attach it; none before a folder exists
+        print("consult: cancelled; judges stopped."
+              + (f" Retry the unfinished judges: {shlex.join(_resume_command(run_dir, args.config))}"
+                 if run_dir else ""), file=sys.stderr)
+        return 130
     for v in verdicts:
         status = "ok" if v.ok else "FAILED"
         print(f"=== {v.judge} ({v.model}) — {status} ===")
         print(v.text.rstrip() if v.ok else v.error)
         print()
+    if any(v.judge == "argon" for v in verdicts):
+        print("Note: the other host's model hit its usage limit; Gemini Argon was called in its place.\n")
     successes = sum(v.ok for v in verdicts)
     if 0 < successes < len(verdicts):
         print(f"PARTIAL: {successes} of {len(verdicts)} judges completed.\n")
     if any(v.error_kind == "authentication_required" for v in verdicts):
         print("Claude needs you to sign in again. Your completed verdicts are saved.")
         login_command = [find_cli("claude", config) or "claude", "auth", "login", "--claudeai"]
-        resume_command = ["consult", "--resume", str(run_dir)]
-        if args.config:
-            resume_command.extend(["--config", str(Path(args.config).absolute())])
+        resume_command = _resume_command(run_dir, args.config)
         print(f"In an interactive terminal: {shlex.join(resume_command + ['--login'])}")
         print(f"Or sign in manually: {shlex.join(login_command)}")
         print(f"Then retry failed judges: {shlex.join(resume_command)}\n")
     elif any(not v.ok for v in verdicts):
-        resume_command = ["consult", "--resume", str(run_dir)]
-        if args.config:
-            resume_command.extend(["--config", str(Path(args.config).absolute())])
+        resume_command = _resume_command(run_dir, args.config)
         print(f"Retry failed judges: {shlex.join(resume_command)}\n")
     print(f"Saved: {run_dir}")
     return 0 if any(v.ok for v in verdicts) else 1

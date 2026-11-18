@@ -22,6 +22,16 @@ class AgySettingsTest(unittest.TestCase):
         self.assertFalse([r for r in READ_ONLY_RULES if r.startswith("command(git")])
         self.assertIn("command(cat)", READ_ONLY_RULES)
 
+    def test_settings_are_replaced_atomically_and_through_links(self):
+        real = Path(self.tmp.name, "dot", "settings.json")
+        real.parent.mkdir()
+        real.write_text(json.dumps({"model": "M"}))
+        self.settings.symlink_to(real)
+        add_rules(self.settings, self.state)
+        self.assertTrue(self.settings.is_symlink())
+        self.assertIn("command(cat)", json.loads(real.read_text())["permissions"]["allow"])
+        self.assertEqual([p.name for p in real.parent.iterdir()], ["settings.json"])
+
     def test_add_keeps_other_keys(self):
         self.settings.write_text(json.dumps({"model": "M", "trustedWorkspaces": ["/a"]}))
         add_rules(self.settings, self.state)

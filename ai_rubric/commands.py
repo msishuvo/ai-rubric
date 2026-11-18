@@ -19,7 +19,7 @@ def build_command(judge: Judge, cli: str, prompt: str, cwd: str,
                 "-c", f'model_reasoning_effort="{judge.effort}"',
                 "-s", "read-only", "-C", cwd, "--skip-git-repo-check", "--ephemeral",
                 "-o", out_file, prompt]
-    if judge.name == "agy":
+    if (judge.cli or judge.name) == "agy":
         return [cli, "-p", prompt, "--model", judge.model, "--mode", "plan",
                 "--output-format", "text"] + _add_dirs(add_dirs)
     raise ValueError(f"no command for judge {judge.name!r}")

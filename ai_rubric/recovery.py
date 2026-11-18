@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .config import Config
-from .judges import HOSTS, judges_for
+from .judges import FALLBACK, HOSTS, judges_for
 
 if TYPE_CHECKING:
     from .run import Verdict
@@ -70,12 +70,14 @@ def load_run(run_dir: Path) -> dict:
         judges = judges_for(state["host"])
         if not isinstance(records, list) or len(records) != len(judges):
             raise ValueError("invalid judge results")
-        for record, judge in zip(records, judges):
+        for i, (record, judge) in enumerate(zip(records, judges)):
             if not isinstance(record, dict) or set(record) != {
                     "judge", "model", "ok", "text", "error", "seconds", "error_kind"}:
                 raise ValueError("invalid verdict fields")
+            if i == 0 and record.get("judge") == FALLBACK.name:
+                judge = FALLBACK  # the stand-in took the other host's slot
             if record["judge"] != judge.name or record["model"] != judge.model:
-                raise ValueError("saved judge does not match the pinned assignments")
+                raise ValueError("this run used different judge models than the current ones")
             if (type(record["ok"]) is not bool or not isinstance(record["text"], str)
                     or (record["error"] is not None and not isinstance(record["error"], str))
                     or record["error_kind"] not in (None, "authentication_required")
@@ -92,7 +94,7 @@ def load_run(run_dir: Path) -> dict:
         (run_dir / "prompt.md").read_text(encoding="utf-8")
     except (OSError, ValueError, KeyError, TypeError, UnicodeError, OverflowError) as exc:
         raise RuntimeError(f"Cannot resume saved run: {exc}. "
-                           "Older runs without a run.json manifest need a fresh consultation.") from exc
+                           "Runs saved without a run.json manifest, or before a judge change, need a fresh consultation.") from exc
     for path in paths:
         if not Path(path).is_dir():
             raise RuntimeError(f"Original workspace folder is missing: {path}")
@@ -112,6 +114,8 @@ def resume_consult(run_dir: Path, config: Config, login: bool = False) -> tuple[
                              and v["error_kind"] == "authentication_required" for v in state["verdicts"]):
             raise RuntimeError("This saved run has no failed Claude sign-in to recover. "
                                "Resume without --login to retry other failures.")
+        print("Resuming the saved prompt against the live workspace. Completed judges will not rerun; "
+              "if files changed, start a fresh consultation for comparable verdicts.")
         if any(not result["ok"] for result in state["verdicts"]):
             _pre_run(config)
         if login:

@@ -59,6 +59,42 @@ print("## Verdict\\nkeep " + {name!r})
     def read_calls(self):
         return [json.loads(line) for line in self.calls.read_text().splitlines()]
 
+    def test_run_from_before_a_model_change_is_refused_with_the_real_reason(self):
+        import io
+        from contextlib import redirect_stdout
+        self.expired.unlink()
+        run_dir, _ = self.initial()
+        state = json.loads((run_dir / "run.json").read_text())
+        state["verdicts"][1]["model"] = "gemini-4-argon-high"  # what an older run recorded
+        (run_dir / "run.json").write_text(json.dumps(state))
+        out = io.StringIO()
+        with redirect_stdout(out), self.assertRaises(RuntimeError) as cm:
+            resume_consult(run_dir, self.cfg)
+        self.assertIn("different judge models", str(cm.exception))
+        self.assertNotIn("Resuming", out.getvalue())
+
+    def test_resume_notice_is_printed_once_the_run_has_loaded(self):
+        import io
+        from contextlib import redirect_stdout
+        run_dir, _ = self.initial()
+        self.expired.unlink()
+        out = io.StringIO()
+        with redirect_stdout(out):
+            resume_consult(run_dir, self.cfg)
+        self.assertIn("Resuming the saved prompt", out.getvalue())
+
+    def test_saved_argon_stand_in_loads_and_is_not_rerun(self):
+        self.expired.unlink()
+        run_dir, _ = self.initial()
+        state = json.loads((run_dir / "run.json").read_text())
+        state["verdicts"][0].update(judge="argon", model="gemini-4-argon-high")
+        (run_dir / "run.json").write_text(json.dumps(state))
+        self.assertEqual(load_run(run_dir)["verdicts"][0]["judge"], "argon")
+        before = len(self.read_calls())
+        _, verdicts = resume_consult(run_dir, self.cfg)
+        self.assertEqual(verdicts[0].judge, "argon")
+        self.assertEqual(len(self.read_calls()), before)
+
     def test_resume_only_failed_judge_preserves_verdict_and_exact_context(self):
         run_dir, _ = self.initial()
         agy = run_dir / "agy.md"

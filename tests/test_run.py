@@ -10,6 +10,7 @@ from unittest import mock
 
 from ai_rubric import discover
 from ai_rubric.config import Config
+from ai_rubric.judges import JUDGES
 from ai_rubric import run as run_module
 from ai_rubric.run import make_run_dir, run_consult
 
@@ -136,6 +137,111 @@ class RunConsultTest(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
 
+    def test_ctrl_c_stops_consult_and_its_judges(self):
+        for sig in ("SIGINT", "SIGTERM", "SIGHUP"):
+            with self.subTest(signal=sig):
+                self._stop_with(sig)
+
+    def test_second_signal_while_judges_ignore_sigterm_still_stops_everything(self):
+        start = time.monotonic()
+        self._stop_with("SIGINT", stubborn=True, repeats=2)
+        self.assertLess(time.monotonic() - start, 8)
+
+    def test_no_stand_in_after_interrupt(self):
+        limit = run_module.Verdict("codex", "m", False, "", "usage limit", 0.1, "usage_limit")
+        cfg = self.config()
+        run_module._STOP.set()
+        self.addCleanup(run_module._STOP.clear)
+        with mock.patch.object(run_module, "_run_one", return_value=limit) as one:
+            verdict = run_module._run_slot(JUDGES["codex"], cfg, "P", str(self.ws), [], self.dir, [])
+        self.assertEqual(one.call_count, 1)
+        self.assertEqual(verdict.judge, "codex")
+
+    def test_stand_in_removes_the_replaced_judges_stale_failed_file(self):
+        from ai_rubric.recovery import resume_consult
+        flag = self.dir / "limit"
+        body = (f"import os\nif os.path.exists({str(flag)!r}):\n"
+                "    sys.stderr.write('You have hit your usage limit.'); sys.exit(1)\n"
+                "sys.stderr.write('connection reset'); sys.exit(1)")
+        cfg = self.config(cli_paths={"codex": self.fake("codex", body=body), "agy": self.fake("agy")})
+        run_dir, _ = run_consult("claude", "Q", str(self.ws), [], cfg)
+        self.assertTrue((run_dir / "codex.md").read_text().startswith("FAILED"))
+        flag.touch()
+        resume_consult(run_dir, cfg)
+        self.assertFalse((run_dir / "codex.md").exists())
+        self.assertIn("keep", (run_dir / "argon.md").read_text())
+        self.assertIn("keep", (run_dir / "agy.md").read_text())
+
+    def test_folder_taken_between_check_and_create_gets_the_next_name(self):
+        now = datetime(2026, 1, 1, 12, 0, 0)
+        first = make_run_dir(str(self.save), "Same words here", now)
+        with mock.patch.object(Path, "exists", return_value=False):  # as if another consult won the race
+            second = make_run_dir(str(self.save), "Same words here", now)
+        self.assertNotEqual(second, first)
+        self.assertTrue(second.is_dir())
+
+    def test_run_folder_is_private(self):
+        run_dir = make_run_dir(str(self.save), "Q", datetime(2026, 1, 1))
+        self.assertEqual(stat.S_IMODE(run_dir.stat().st_mode), 0o700)
+
+    def test_hangup_ignored_at_start_stays_ignored(self):
+        import signal, subprocess
+        pids = self.dir / "pids"
+        judge = self.dir / "slow-judge"
+        judge.write_text(f"#!/bin/sh\necho $$ >> '{pids}'\nexec /bin/sleep 60\n")
+        judge.chmod(0o755)
+        (self.dir / "brief.md").write_text("Q\n")
+        (self.dir / "cfg.toml").write_text(
+            f'save_root = "{self.save}"\n[cli]\ncodex = "{judge}"\nagy = "{judge}"\n')
+        proc = subprocess.Popen(  # started like nohup: hangups ignored
+            [sys.executable, str(Path(__file__).resolve().parents[1] / "bin/consult"),
+             "--from", "claude", "--brief", str(self.dir / "brief.md"), "--config", str(self.dir / "cfg.toml")],
+            cwd=self.ws, stderr=subprocess.PIPE,
+            preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN))
+        self.addCleanup(lambda: proc.poll() is None and proc.kill())
+        deadline = time.monotonic() + 10
+        while (not pids.exists() or len(pids.read_text().split()) < 2) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        proc.send_signal(signal.SIGHUP)
+        time.sleep(1.5)
+        self.assertIsNone(proc.poll(), "consult must survive a hangup it was told to ignore")
+        proc.send_signal(signal.SIGINT)
+        proc.wait(timeout=15)
+
+    def _stop_with(self, sig_name, stubborn=False, repeats=1):
+        import shutil, signal, subprocess
+        shutil.rmtree(self.save, ignore_errors=True)
+        pids = self.dir / "pids"
+        pids.unlink(missing_ok=True)
+        judge = self.dir / "slow-judge"
+        trap = 'trap "" TERM HUP\n' if stubborn else ""
+        judge.write_text(f"#!/bin/sh\necho $$ >> '{pids}'\n{trap}exec /bin/sleep 60\n")
+        judge.chmod(0o755)
+        (self.dir / "brief.md").write_text("Q\n")
+        (self.dir / "cfg.toml").write_text(
+            f'save_root = "{self.save}"\n[cli]\ncodex = "{judge}"\nagy = "{judge}"\n')
+        proc = subprocess.Popen([sys.executable, str(Path(__file__).resolve().parents[1] / "bin/consult"),
+                                 "--from", "claude", "--brief", str(self.dir / "brief.md"),
+                                 "--config", str(self.dir / "cfg.toml")],
+                                cwd=self.ws, stderr=subprocess.PIPE)
+        self.addCleanup(lambda: proc.poll() is None and proc.kill())
+        deadline = time.monotonic() + 10
+        while (not pids.exists() or len(pids.read_text().split()) < 2) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        for _ in range(repeats):
+            proc.send_signal(getattr(signal, sig_name))
+            time.sleep(0.3)
+        proc.wait(timeout=15)
+        err = proc.stderr.read().decode()
+        self.assertIn("cancelled", err)
+        time.sleep(0.5)
+        for pid in pids.read_text().split():
+            with self.assertRaises(ProcessLookupError):
+                os.kill(int(pid), 0)
+        run_dir = next(self.save.iterdir())
+        self.assertFalse((run_dir / ".run.lock").exists())
+        self.assertIn(f"consult --resume {run_dir}", err)
+
     def test_brief_reaches_every_judge_byte_for_byte(self):
         brief = 'Q: a "b" $c `d` \\n\nline2 \u00fc\u00f1 \u2014 ' + "x" * 50000
         seen = {}
@@ -169,6 +275,25 @@ class RunConsultTest(unittest.TestCase):
         self.assertIn("OAuth session expired", verdicts[0].error)
         self.assertTrue(verdicts[1].ok)
         self.assertIn("keep", (run_dir / "agy.md").read_text())
+
+    def test_usage_limit_brings_in_argon_beside_neon(self):
+        limit = "sys.stderr.write(\"You've hit your usage limit.\"); sys.exit(1)"
+        model = "text = args[args.index('--model') + 1]"
+        cfg = self.config(cli_paths={"codex": self.fake("codex", body=limit),
+                                     "agy": self.fake("agy", body=model)})
+        run_dir, verdicts = run_consult("claude", "Q", str(self.ws), [], cfg)
+        self.assertEqual([(v.judge, v.model, v.ok) for v in verdicts],
+                         [("argon", "gemini-4-argon-high", True), ("agy", "gemini-4-neon-high", True)])
+        self.assertEqual(verdicts[0].text, "gemini-4-argon-high")
+        self.assertEqual((run_dir / "argon.md").read_text(), "gemini-4-argon-high")
+        self.assertIn("usage limit", (run_dir / "run.log").read_text())
+
+    def test_other_failures_get_no_stand_in(self):
+        body = "sys.stderr.write('connection reset'); sys.exit(1)"
+        cfg = self.config(cli_paths={"codex": self.fake("codex", body=body), "agy": self.fake("agy")})
+        _, verdicts = run_consult("claude", "Q", str(self.ws), [], cfg)
+        self.assertEqual([v.judge for v in verdicts], ["codex", "agy"])
+        self.assertFalse(verdicts[0].ok)
 
     def test_successful_verdict_discussing_authentication_stays_successful(self):
         cfg = self.config(cli_paths={"claude": self.fake("claude", text="Recommend handling Login expired · Please run /login"),

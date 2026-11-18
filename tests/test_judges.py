@@ -1,6 +1,6 @@
 import unittest
 
-from ai_rubric.judges import JUDGES, Judge, judges_for
+from ai_rubric.judges import FALLBACK, JUDGES, Judge, judges_for
 
 
 class JudgesForTest(unittest.TestCase):
@@ -11,9 +11,10 @@ class JudgesForTest(unittest.TestCase):
         self.assertEqual([j.name for j in judges_for("codex")], ["claude", "agy"])
 
     def test_models_are_pinned(self):
-        self.assertEqual(JUDGES["claude"], Judge("claude", "claude-opus-5-5", "medium"))
-        self.assertEqual(JUDGES["codex"], Judge("codex", "gpt-6-astra", "medium"))
-        self.assertEqual(JUDGES["agy"], Judge("agy", "gemini-4-argon-high", None))
+        self.assertEqual(JUDGES["claude"], Judge("claude", "claude-opus-5-5", "high"))
+        self.assertEqual(JUDGES["codex"], Judge("codex", "gpt-6.2-astra", "high"))
+        self.assertEqual(JUDGES["agy"], Judge("agy", "gemini-4-neon-high", None))
+        self.assertEqual(FALLBACK, Judge("argon", "gemini-4-argon-high", None, cli="agy"))
 
     def test_unknown_host_rejected(self):
         for host in ("agy", "gemini", ""):

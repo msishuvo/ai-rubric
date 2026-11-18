@@ -39,6 +39,8 @@ def load_config(path: Path | None = None) -> Config:
     cfg = Config()
     if "timeout" in data:
         cfg.timeout = int(data["timeout"])
+        if cfg.timeout <= 0:
+            raise ValueError("timeout must be a positive number of seconds")
     if "save_root" in data:
         cfg.save_root = _expand(data["save_root"])
     cfg.extra_dirs = [_expand(d) for d in data.get("extra_dirs", [])]
