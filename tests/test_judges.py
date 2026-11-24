@@ -13,8 +13,8 @@ class JudgesForTest(unittest.TestCase):
     def test_models_are_pinned(self):
         self.assertEqual(JUDGES["claude"], Judge("claude", "claude-opus-5-5", "high"))
         self.assertEqual(JUDGES["codex"], Judge("codex", "gpt-6.2-astra", "high"))
-        self.assertEqual(JUDGES["agy"], Judge("agy", "gemini-4-neon-high", None))
-        self.assertEqual(FALLBACK, Judge("argon", "gemini-4-argon-high", None, cli="agy"))
+        self.assertEqual(JUDGES["agy"], Judge("agy", "gemini-4-carbon-high", None))
+        self.assertEqual(FALLBACK, Judge("neon", "gemini-4-neon-high", None, cli="agy"))
 
     def test_unknown_host_rejected(self):
         for host in ("agy", "gemini", ""):

@@ -24,13 +24,13 @@ class BuildCommandTest(unittest.TestCase):
     def test_agy_command(self):
         self.assertEqual(
             build_command(JUDGES["agy"], "/bin/agy", "P", "/w", DIRS, "/o.md"),
-            ["/bin/agy", "-p", "P", "--model", "gemini-4-neon-high", "--mode", "plan",
+            ["/bin/agy", "-p", "P", "--model", "gemini-4-carbon-high", "--mode", "plan",
              "--output-format", "text", "--add-dir", "/x y", "--add-dir", "/z"])
 
-    def test_argon_fallback_uses_agy_command(self):
+    def test_neon_fallback_uses_agy_command(self):
         self.assertEqual(
             build_command(FALLBACK, "/bin/agy", "P", "/w", [], "/o.md"),
-            ["/bin/agy", "-p", "P", "--model", "gemini-4-argon-high", "--mode", "plan",
+            ["/bin/agy", "-p", "P", "--model", "gemini-4-neon-high", "--mode", "plan",
              "--output-format", "text"])
 
     def test_prompt_is_single_argv_element(self):

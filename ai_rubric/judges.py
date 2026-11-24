@@ -14,12 +14,12 @@ class Judge:
 JUDGES: dict[str, Judge] = {
     "claude": Judge("claude", "claude-opus-5-5", "high"),
     "codex": Judge("codex", "gpt-6.2-astra", "high"),
-    "agy": Judge("agy", "gemini-4-neon-high", None),  # effort is part of the model id
+    "agy": Judge("agy", "gemini-4-carbon-high", None),  # effort is part of the model id
 }
 
 # Stands in for the other host's model when that model hits its usage limit,
 # so a consultation still gets two verdicts.
-FALLBACK = Judge("argon", "gemini-4-argon-high", None, cli="agy")
+FALLBACK = Judge("neon", "gemini-4-neon-high", None, cli="agy")
 
 HOSTS = ("claude", "codex")
 

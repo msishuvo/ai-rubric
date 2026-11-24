@@ -113,7 +113,7 @@ class MainTest(unittest.TestCase):
     def test_partial_auth_failure_prints_quoted_recovery_commands(self):
         verdicts = [Verdict("claude", "claude-opus-5-5", False, "", "Login expired", 1.0,
                             "authentication_required"),
-                    Verdict("agy", "gemini-4-argon-high", True, "keep", None, 1.0)]
+                    Verdict("agy", "gemini-4-neon-high", True, "keep", None, 1.0)]
         with mock.patch.object(cli, "run_consult", return_value=(Path("/saved/run with spaces"), verdicts)):
             code, out, _ = self.call("--from", "codex", "--brief", str(self.brief))
         self.assertEqual(code, 0)

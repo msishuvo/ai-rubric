@@ -65,7 +65,7 @@ print("## Verdict\\nkeep " + {name!r})
         self.expired.unlink()
         run_dir, _ = self.initial()
         state = json.loads((run_dir / "run.json").read_text())
-        state["verdicts"][1]["model"] = "gemini-4-argon-high"  # what an older run recorded
+        state["verdicts"][1]["model"] = "gemini-4-neon-high"  # what an older run recorded
         (run_dir / "run.json").write_text(json.dumps(state))
         out = io.StringIO()
         with redirect_stdout(out), self.assertRaises(RuntimeError) as cm:
@@ -83,16 +83,16 @@ print("## Verdict\\nkeep " + {name!r})
             resume_consult(run_dir, self.cfg)
         self.assertIn("Resuming the saved prompt", out.getvalue())
 
-    def test_saved_argon_stand_in_loads_and_is_not_rerun(self):
+    def test_saved_neon_stand_in_loads_and_is_not_rerun(self):
         self.expired.unlink()
         run_dir, _ = self.initial()
         state = json.loads((run_dir / "run.json").read_text())
-        state["verdicts"][0].update(judge="argon", model="gemini-4-argon-high")
+        state["verdicts"][0].update(judge="neon", model="gemini-4-neon-high")
         (run_dir / "run.json").write_text(json.dumps(state))
-        self.assertEqual(load_run(run_dir)["verdicts"][0]["judge"], "argon")
+        self.assertEqual(load_run(run_dir)["verdicts"][0]["judge"], "neon")
         before = len(self.read_calls())
         _, verdicts = resume_consult(run_dir, self.cfg)
-        self.assertEqual(verdicts[0].judge, "argon")
+        self.assertEqual(verdicts[0].judge, "neon")
         self.assertEqual(len(self.read_calls()), before)
 
     def test_resume_only_failed_judge_preserves_verdict_and_exact_context(self):

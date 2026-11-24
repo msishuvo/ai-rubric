@@ -92,8 +92,8 @@ def main(argv: list[str]) -> int:
         print(f"=== {v.judge} ({v.model}) — {status} ===")
         print(v.text.rstrip() if v.ok else v.error)
         print()
-    if any(v.judge == "argon" for v in verdicts):
-        print("Note: the other host's model hit its usage limit; Gemini Argon was called in its place.\n")
+    if any(v.judge == "neon" for v in verdicts):
+        print("Note: the other host's model hit its usage limit; Gemini Neon was called in its place.\n")
     successes = sum(v.ok for v in verdicts)
     if 0 < successes < len(verdicts):
         print(f"PARTIAL: {successes} of {len(verdicts)} judges completed.\n")

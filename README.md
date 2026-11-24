@@ -9,12 +9,12 @@ knowing who wrote it, and gives a verdict.
 
 | Host you are in | Judges |
 |---|---|
-| Claude Code | Codex `gpt-6.2-astra` (high) and Antigravity `gemini-4-neon-high` |
-| Codex | Claude `claude-opus-5-5` (high) and Antigravity `gemini-4-neon-high` |
+| Claude Code | Codex `gpt-6.2-astra` (high) and Antigravity `gemini-4-carbon-high` |
+| Codex | Claude `claude-opus-5-5` (high) and Antigravity `gemini-4-carbon-high` |
 
 The models are fixed in code (`ai_rubric/judges.py`). If Codex or Claude
-fails because it hit its usage limit, Antigravity `gemini-4-argon-high` runs
-in its place, so you still get two verdicts: Neon and Argon. Any other
+fails because it hit its usage limit, Antigravity `gemini-4-neon-high` runs
+in its place, so you still get two verdicts: Carbon and Neon. Any other
 failure is reported as failed and nothing replaces it.
 
 ## Install, once per machine
@@ -77,7 +77,7 @@ run directory:
 This starts `claude auth login --claudeai` using the configured/discovered Claude
 CLI. Complete the browser sign-in yourself. The command checks that subscription
 authentication is active, then retries only the failed judges once. It never
-falls back to API billing, and substitutes a model only through the Argon
+falls back to API billing, and substitutes a model only through the Neon
 stand-in described under Judges. Successful verdict files stay
 untouched, and previous failure messages remain in `run.log`.
 

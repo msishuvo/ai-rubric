@@ -169,7 +169,7 @@ class RunConsultTest(unittest.TestCase):
         flag.touch()
         resume_consult(run_dir, cfg)
         self.assertFalse((run_dir / "codex.md").exists())
-        self.assertIn("keep", (run_dir / "argon.md").read_text())
+        self.assertIn("keep", (run_dir / "neon.md").read_text())
         self.assertIn("keep", (run_dir / "agy.md").read_text())
 
     def test_folder_taken_between_check_and_create_gets_the_next_name(self):
@@ -276,16 +276,16 @@ class RunConsultTest(unittest.TestCase):
         self.assertTrue(verdicts[1].ok)
         self.assertIn("keep", (run_dir / "agy.md").read_text())
 
-    def test_usage_limit_brings_in_argon_beside_neon(self):
+    def test_usage_limit_brings_in_neon_beside_carbon(self):
         limit = "sys.stderr.write(\"You've hit your usage limit.\"); sys.exit(1)"
         model = "text = args[args.index('--model') + 1]"
         cfg = self.config(cli_paths={"codex": self.fake("codex", body=limit),
                                      "agy": self.fake("agy", body=model)})
         run_dir, verdicts = run_consult("claude", "Q", str(self.ws), [], cfg)
         self.assertEqual([(v.judge, v.model, v.ok) for v in verdicts],
-                         [("argon", "gemini-4-argon-high", True), ("agy", "gemini-4-neon-high", True)])
-        self.assertEqual(verdicts[0].text, "gemini-4-argon-high")
-        self.assertEqual((run_dir / "argon.md").read_text(), "gemini-4-argon-high")
+                         [("neon", "gemini-4-neon-high", True), ("agy", "gemini-4-carbon-high", True)])
+        self.assertEqual(verdicts[0].text, "gemini-4-neon-high")
+        self.assertEqual((run_dir / "neon.md").read_text(), "gemini-4-neon-high")
         self.assertIn("usage limit", (run_dir / "run.log").read_text())
 
     def test_other_failures_get_no_stand_in(self):
