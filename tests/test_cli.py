@@ -122,6 +122,15 @@ class MainTest(unittest.TestCase):
         self.assertIn("consult --resume '/saved/run with spaces'", out)
         self.assertIn("--login", out)
 
+    def test_version_flag_prints_the_version(self):
+        from ai_rubric import __version__
+        out = io.StringIO()
+        with redirect_stdout(out), self.assertRaises(SystemExit) as cm:
+            cli.main(["--version"])
+        self.assertEqual(cm.exception.code, 0)
+        self.assertEqual(out.getvalue().strip(), f"consult {__version__}")
+        self.assertRegex(__version__, r"^\d+\.\d+\.\d+$")
+
     def test_cancel_names_the_folder_to_resume(self):
         def interrupted(*a, **k):
             exc = KeyboardInterrupt()

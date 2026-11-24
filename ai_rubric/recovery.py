@@ -77,7 +77,8 @@ def load_run(run_dir: Path) -> dict:
             if i == 0 and record.get("judge") == FALLBACK.name:
                 judge = FALLBACK  # the stand-in took the other host's slot
             if record["judge"] != judge.name or record["model"] != judge.model:
-                raise ValueError("this run used different judge models than the current ones")
+                raise ValueError("this run used different judge models than the current ones "
+                                 f"(saved by consult {state.get('tool_version', 'before 1.0.0')})")
             if (type(record["ok"]) is not bool or not isinstance(record["text"], str)
                     or (record["error"] is not None and not isinstance(record["error"], str))
                     or record["error_kind"] not in (None, "authentication_required")

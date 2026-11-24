@@ -7,6 +7,7 @@ import signal
 import sys
 from pathlib import Path
 
+from . import __version__
 from .config import load_config
 from .judges import HOSTS
 from .prompt import lint_brief
@@ -20,6 +21,7 @@ LINT_MESSAGE = ("Brief may reveal authorship or leaning: {hits}. Rewrite it neut
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="consult", description=__doc__)
+    p.add_argument("--version", action="version", version=f"consult {__version__}")
     p.add_argument("--from", dest="host", choices=HOSTS,
                    help="the tool asking: claude (Claude Code) or codex")
     source = p.add_mutually_exclusive_group(required=True)

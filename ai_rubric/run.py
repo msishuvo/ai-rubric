@@ -17,7 +17,7 @@ from .config import Config
 from .discover import find_cli
 from .judges import FALLBACK, Judge, judges_for
 from .prompt import build_prompt
-from . import recovery
+from . import __version__, recovery
 
 
 @dataclass
@@ -236,7 +236,7 @@ def run_consult(host: str, brief: str, cwd: str, add_dirs: list[str],
         (run_dir / "prompt.md").write_text(prompt, encoding="utf-8")
         (run_dir / "run.log").write_text(
             f"host={host} cwd={cwd} roots={roots} timeout={config.timeout}\n", encoding="utf-8")
-        state = {"version": 1, "host": host, "cwd": cwd, "extra_dirs": extra,
+        state = {"version": 1, "tool_version": __version__, "host": host, "cwd": cwd, "extra_dirs": extra,
                  "started_at": time.time(), "verdicts": [
                      asdict(Verdict(j.name, j.model, False, "", "not completed", 0.0)) for j in judges]}
         try:

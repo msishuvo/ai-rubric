@@ -73,6 +73,24 @@ print("## Verdict\\nkeep " + {name!r})
         self.assertIn("different judge models", str(cm.exception))
         self.assertNotIn("Resuming", out.getvalue())
 
+    def test_saved_run_records_the_tool_version_and_a_refusal_names_it(self):
+        from ai_rubric import __version__
+        self.expired.unlink()
+        run_dir, _ = self.initial()
+        state = json.loads((run_dir / "run.json").read_text())
+        self.assertEqual(state["tool_version"], __version__)
+        state["verdicts"][1]["model"] = "gemini-4-neon-high"
+        state["tool_version"] = "0.9.0"
+        (run_dir / "run.json").write_text(json.dumps(state))
+        with self.assertRaises(RuntimeError) as cm:
+            resume_consult(run_dir, self.cfg)
+        self.assertIn("saved by consult 0.9.0", str(cm.exception))
+        del state["tool_version"]
+        (run_dir / "run.json").write_text(json.dumps(state))
+        with self.assertRaises(RuntimeError) as cm:
+            resume_consult(run_dir, self.cfg)
+        self.assertIn("before 1.0.0", str(cm.exception))
+
     def test_resume_notice_is_printed_once_the_run_has_loaded(self):
         import io
         from contextlib import redirect_stdout

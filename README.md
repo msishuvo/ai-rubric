@@ -106,6 +106,12 @@ that the consultation is no longer running.
 | 3 | brief refused |
 | 130 | cancelled (Ctrl-C, SIGTERM or SIGHUP); judges stopped, `--resume` retries them |
 
+## Versions
+
+`consult --version` prints the installed version. Releases are git tags
+(`v1.0.0`); `git describe --tags` shows which one a machine is on. See
+`CHANGELOG.md` for what changed and for the release steps.
+
 ## Where results go
 
 `~/.local/state/ai-rubric/consultations/<time>-<slug>/` holds `brief.md`,
