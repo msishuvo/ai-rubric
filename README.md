@@ -112,6 +112,21 @@ that the consultation is no longer running.
 (`v1.0.0`); `git describe --tags` shows which one a machine is on. See
 `CHANGELOG.md` for what changed and for the release steps.
 
+### Updating a machine to the latest version
+
+In the folder you cloned `ai-rubric` into:
+
+    git pull --ff-only
+    ./install.sh
+    consult --version
+
+`git pull` fetches the newest `main`. `./install.sh` is safe to run again: it
+changes nothing unless the skill, the rule text or the installer itself
+changed. `consult --version` should print the number in `CHANGELOG.md`'s
+newest entry. Read that entry first: a major version may stop old saved runs
+from resuming. To stay on one release instead of the newest, run
+`git fetch --tags && git checkout v1.0.0`, and `git switch main` to go back.
+
 ## Where results go
 
 `~/.local/state/ai-rubric/consultations/<time>-<slug>/` holds `brief.md`,
