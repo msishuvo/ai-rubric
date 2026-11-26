@@ -131,6 +131,22 @@ class InstallScriptTest(unittest.TestCase):
         agy = json.loads((self.home / ".gemini/antigravity-cli/settings.json").read_text())
         self.assertIn("command(cat)", agy["permissions"]["allow"])
 
+    def test_antigravity_gets_the_skill_and_the_consult_rule(self):
+        proc = self.run_install()
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        plugin = self.home / ".gemini/config/plugins/ai-rubric"
+        self.assertTrue(plugin.is_symlink())
+        self.assertEqual(os.readlink(plugin), str(self.repo / "install/antigravity-plugin"))
+        self.assertEqual((plugin / "skills/consult/SKILL.md").resolve(),
+                         (self.repo / "skills/consult/SKILL.md").resolve())
+        self.assertTrue((plugin / "plugin.json").is_file())
+        text = (self.home / ".gemini/GEMINI.md").read_text()
+        self.assertIn("## When judging (ai-rubric)", text)
+        self.assertIn("## Second opinions (ai-rubric)", text)
+        self.run_install("--uninstall")
+        self.assertFalse(plugin.is_symlink())
+        self.assertFalse((self.home / ".gemini/GEMINI.md").read_text().strip())
+
     def test_install_twice_is_idempotent(self):
         self.run_install()
         first = self.snapshot()

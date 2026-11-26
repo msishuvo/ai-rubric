@@ -30,6 +30,7 @@ LINKS=(
   "$HOME/.claude/skills/consult|$REPO/skills/consult"
   "$HOME/.codex/skills/consult|$REPO/skills/consult"
   "$HOME/.local/bin/consult|$REPO/bin/consult"
+  "$HOME/.gemini/config/plugins/ai-rubric|$REPO/install/antigravity-plugin"
 )
 
 link() {
@@ -58,6 +59,12 @@ unlink_ours() {
   fi
 }
 
+gemini_rules_fragment() {  # judging rules plus the "use consult" rule: Antigravity is a host too
+  local tmp; tmp="$(mktemp)"
+  { cat "$REPO/install/gemini-rules.md"; echo; cat "$REPO/install/claude-rule.md"; } > "$tmp"
+  echo "$tmp"
+}
+
 codex_rules_fragment() {
   local tmp; tmp="$(mktemp)"
   sed "s|@HOME@|$HOME|g" "$REPO/install/codex.rules" > "$tmp"
@@ -80,8 +87,10 @@ for pair in "${LINKS[@]}"; do link "${pair%%|*}" "${pair##*|}"; done
 for f in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
   "${BLOCKS[@]}" upsert "$f" md "$REPO/install/claude-rule.md" && echo "rules   $f" || status=1
 done
-"${BLOCKS[@]}" upsert "$HOME/.gemini/GEMINI.md" md "$REPO/install/gemini-rules.md" \
+frag="$(gemini_rules_fragment)"
+"${BLOCKS[@]}" upsert "$HOME/.gemini/GEMINI.md" md "$frag" \
   && echo "rules   $HOME/.gemini/GEMINI.md" || status=1
+rm -f "$frag"
 frag="$(codex_rules_fragment)"
 "${BLOCKS[@]}" upsert "$HOME/.codex/rules/default.rules" hash "$frag" \
   && echo "rules   $HOME/.codex/rules/default.rules" || status=1
