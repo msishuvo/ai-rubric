@@ -316,6 +316,11 @@ class RunConsultTest(unittest.TestCase):
         self.assertEqual(sorted((v.judge, v.text) for v in verdicts),
                          [("agy", "gemini-4-carbon-high"), ("neon", "gemini-4-neon-high")])
 
+    def test_hanging_pre_run_times_out(self):
+        cfg = self.config(pre_run=[sys.executable, "-c", "import time; time.sleep(30)"], timeout=1)
+        with self.assertRaisesRegex(RuntimeError, "timed out"):
+            run_consult("claude", "Q", str(self.ws), [], cfg)
+
     def test_agy_resume_after_carbon_held_gives_neon(self):
         from ai_rubric.recovery import resume_consult
         flag = self.dir / "limit"

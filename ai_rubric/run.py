@@ -178,7 +178,9 @@ def _claimer(stand_ins: list[Judge]) -> Callable[[], Judge | None]:
 def _pre_run(config: Config) -> None:
     if config.pre_run:
         try:
-            pre = subprocess.run(config.pre_run, capture_output=True, text=True)
+            pre = subprocess.run(config.pre_run, capture_output=True, text=True, timeout=config.timeout)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"pre_run command {config.pre_run} timed out after {config.timeout}s") from exc
         except OSError as exc:
             raise RuntimeError(f"pre_run command {config.pre_run} could not start: {exc}") from exc
         if pre.returncode != 0:

@@ -34,6 +34,10 @@ class LintBriefTest(unittest.TestCase):
     def test_lint_flags_tool_names(self):
         self.assertIn("Codex", lint_brief("Codex agreed with this"))
 
+    def test_lint_flags_newer_model_names(self):
+        for name in ("agy", "Astra", "Sonnet"):
+            self.assertIn(name, lint_brief(f"{name} proposed this"))
+
     def test_lint_flags_leaning(self):
         self.assertTrue(lint_brief("I feel this plan is weak"))
 

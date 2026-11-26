@@ -130,6 +130,19 @@ print("## Verdict\\nkeep " + {name!r})
         (run_dir / "run.json").write_text(json.dumps(state))
         self.assertEqual(load_run(run_dir)["verdicts"][0]["error_kind"], "usage_limit")
 
+    def test_stand_in_only_in_a_slot_that_can_hit_a_limit_and_only_once(self):
+        run_dir, _ = self.initial()  # codex host: slot 0 claude, slot 1 agy
+        original = json.loads((run_dir / "run.json").read_text())
+        neon = {"judge": "neon", "model": "gemini-4-neon-high"}
+        bad = []
+        state = json.loads(json.dumps(original)); state["verdicts"][1].update(neon); bad.append(state)
+        state = json.loads(json.dumps(original)); state["host"] = "agy"
+        state["verdicts"][0].update(neon); state["verdicts"][1].update(neon); bad.append(state)
+        for state in bad:
+            (run_dir / "run.json").write_text(json.dumps(state))
+            with self.assertRaises(RuntimeError):
+                load_run(run_dir)
+
     def test_resume_only_failed_judge_preserves_verdict_and_exact_context(self):
         run_dir, _ = self.initial()
         agy = run_dir / "agy.md"

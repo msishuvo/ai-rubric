@@ -50,7 +50,7 @@ def build_prompt(brief: str, roots: list[str]) -> str:
 
 
 _LEAK_PATTERNS = [
-    r"\b(claude|codex|antigravity|gemini|gpt|opus|chatgpt)\b",
+    r"\b(claude|codex|antigravity|agy|gemini|gpt|opus|sonnet|astra|chatgpt)\b",
     r"\bI (feel|think|believe|suspect|doubt|prefer|like|hate)\b",
     r"\b(my|our) (proposal|plan|idea|answer|design)\b",
     r"\buser (thinks|feels|prefers|wants to drop|doubts)\b",

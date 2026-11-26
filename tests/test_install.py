@@ -147,6 +147,22 @@ class InstallScriptTest(unittest.TestCase):
         self.assertFalse(plugin.is_symlink())
         self.assertFalse((self.home / ".gemini/GEMINI.md").read_text().strip())
 
+    def test_plugin_version_matches_the_tool(self):
+        import json
+        from ai_rubric import __version__
+        plugin = json.loads((self.repo / "install/antigravity-plugin/plugin.json").read_text())
+        self.assertEqual(plugin["version"], __version__)
+
+    def test_foreign_plugin_link_left_alone(self):
+        plugin = self.home / ".gemini/config/plugins/ai-rubric"
+        plugin.parent.mkdir(parents=True)
+        plugin.symlink_to("/somewhere/else")
+        proc = self.run_install()
+        self.assertIn("left alone", proc.stdout)
+        self.assertEqual(os.readlink(plugin), "/somewhere/else")
+        self.run_install("--uninstall")
+        self.assertTrue(plugin.is_symlink())
+
     def test_install_twice_is_idempotent(self):
         self.run_install()
         first = self.snapshot()

@@ -82,6 +82,14 @@ class MainTest(unittest.TestCase):
         self.assertIn("/no/such/folder", err)
         run.assert_not_called()
 
+    def test_missing_config_extra_dir_exit_2_no_run(self):
+        self.cfg.write_text('extra_dirs = ["/no/such/shared"]\n')
+        with mock.patch.object(cli, "run_consult") as run:
+            code, _, err = self.call("--from", "claude", "--brief", str(self.brief))
+        self.assertEqual(code, 2)
+        self.assertIn("/no/such/shared", err)
+        run.assert_not_called()
+
     def test_missing_brief_exit_2(self):
         code, _, err = self.call("--from", "claude", "--brief", "/no/such/brief.md")
         self.assertEqual(code, 2)

@@ -81,9 +81,9 @@ def main(argv: list[str]) -> int:
         except (OSError, UnicodeError) as exc:
             print(f"consult: cannot read brief: {exc}", file=sys.stderr)
             return 2
-        missing = [d for d in args.add_dir if not os.path.isdir(os.path.expanduser(d))]
+        missing = [d for d in args.add_dir + config.extra_dirs if not os.path.isdir(os.path.expanduser(d))]
         if missing:
-            print(f"consult: --add-dir folder not found: {', '.join(missing)}", file=sys.stderr)
+            print(f"consult: workspace folder not found (--add-dir or extra_dirs): {', '.join(missing)}", file=sys.stderr)
             return 2
         hits = lint_brief(brief)
         if hits and not args.allow_flagged:

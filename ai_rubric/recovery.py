@@ -70,13 +70,15 @@ def load_run(run_dir: Path) -> dict:
         judges = judges_for(state["host"])
         if not isinstance(records, list) or len(records) != len(judges):
             raise ValueError("invalid judge results")
+        used_stand_ins = set()
         for i, (record, judge) in enumerate(zip(records, judges)):
             if not isinstance(record, dict) or set(record) != {
                     "judge", "model", "ok", "text", "error", "seconds", "error_kind"}:
                 raise ValueError("invalid verdict fields")
             stand_in = next((s for s in stand_ins_for(state["host"]) if s.name == record.get("judge")), None)
-            if stand_in:
-                judge = stand_in  # a stand-in took this usage-limited slot
+            if stand_in and judge.name in ("claude", "codex") and stand_in.name not in used_stand_ins:
+                used_stand_ins.add(stand_in.name)
+                judge = stand_in  # a stand-in took this usage-limited slot, once per run
             if record["judge"] != judge.name or record["model"] != judge.model:
                 raise ValueError("this run used different judge models than the current ones "
                                  f"(saved by consult {state.get('tool_version', 'before 1.0.0')})")
