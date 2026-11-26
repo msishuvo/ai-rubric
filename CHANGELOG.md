@@ -6,6 +6,19 @@ bump `__version__` in `ai_rubric/__init__.py`, add an entry here, commit, then
 `git tag -a v<version> -m "consult <version>"` and `git push origin v<version>`.
 Each saved run records the version that made it (`tool_version` in `run.json`).
 
+## 1.1.0 - 2026-11-26
+
+- Antigravity is a host: `consult --from agy` asks Claude `claude-opus-5-5`
+  and Codex `gpt-6.2-astra`.
+- From Antigravity, a usage-limited slot gets `gemini-4-carbon-high`; if both
+  slots hit their limit, the second gets `gemini-4-neon-high`. Claude Code and
+  Codex hosts are unchanged.
+- The installer links an Antigravity plugin folder for the skill
+  (`~/.gemini/config/plugins/ai-rubric`) and adds the "use consult" rule to
+  `~/.gemini/GEMINI.md`.
+- The stand-in note names the model that ran.
+- Fix: a run cancelled right after a usage limit can be resumed.
+
 ## 1.0.0 - 2026-11-25
 
 First tagged release.

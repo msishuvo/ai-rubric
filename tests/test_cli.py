@@ -122,6 +122,30 @@ class MainTest(unittest.TestCase):
         self.assertIn("consult --resume '/saved/run with spaces'", out)
         self.assertIn("--login", out)
 
+    def test_agy_host_runs_and_names_carbon_stand_in(self):
+        verdicts = [Verdict("claude", "claude-opus-5-5", True, "keep", None, 1.0),
+                    Verdict("agy", "gemini-4-carbon-high", True, "keep", None, 1.0)]
+        with mock.patch.object(cli, "run_consult", return_value=(Path("/saved/run"), verdicts)) as run:
+            code, out, _ = self.call("--from", "agy", "--brief", str(self.brief))
+        self.assertEqual(code, 0)
+        self.assertEqual(run.call_args.args[0], "agy")
+        self.assertIn("gemini-4-carbon-high was called in its place", out)
+
+    def test_carbon_judge_from_claude_host_is_not_called_a_stand_in(self):
+        with mock.patch.object(cli, "run_consult", return_value=self.verdicts(True, True)):
+            _, out, _ = self.call("--from", "claude", "--brief", str(self.brief))
+        self.assertNotIn("in its place", out)
+
+    def test_resumed_agy_run_reads_host_from_manifest(self):
+        run_dir = Path(self.tmp.name, "run")
+        run_dir.mkdir()
+        (run_dir / "run.json").write_text('{"host": "agy"}')
+        verdicts = [Verdict("neon", "gemini-4-neon-high", True, "keep", None, 1.0),
+                    Verdict("codex", "gpt-6.2-astra", True, "keep", None, 1.0)]
+        with mock.patch.object(cli, "resume_consult", return_value=(run_dir, verdicts)):
+            _, out, _ = self.call("--resume", str(run_dir))
+        self.assertIn("gemini-4-neon-high was called in its place", out)
+
     def test_version_flag_prints_the_version(self):
         from ai_rubric import __version__
         out = io.StringIO()

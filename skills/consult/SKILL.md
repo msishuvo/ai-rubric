@@ -1,6 +1,6 @@
 ---
 name: consult
-description: Get independent, blind, two-sided verdicts from two other AI models (pinned Claude Opus 5.5, GPT-6.2 Astra, Gemini 4 Carbon; Gemini 4 Neon stands in on a usage limit) on a proposal. Use when a second opinion could change the outcome - design or UI choices, architecture, product or pricing scope, choosing between options, reviewing a plan or proposal from anyone (yourself, the user, another tool), or the user asks "is this good enough?". Also when the user says "consult", "council this" or /consult. Do NOT use for factual lookups, explaining code, small edits, bugs with a clear cause, running commands, or when the user says "no council".
+description: Get independent, blind, two-sided verdicts from two other AI models (pinned Claude Opus 5.5, GPT-6.2 Astra, Gemini 4 Carbon; Gemini stands in on a usage limit) on a proposal. Use when a second opinion could change the outcome - design or UI choices, architecture, product or pricing scope, choosing between options, reviewing a plan or proposal from anyone (yourself, the user, another tool), or the user asks "is this good enough?". Also when the user says "consult", "council this" or /consult. Do NOT use for factual lookups, explaining code, small edits, bugs with a clear cause, running commands, or when the user says "no council".
 ---
 
 # consult
@@ -16,9 +16,12 @@ add a model yourself.
 
 - In Claude Code, use `--from claude`. Your judges are Codex and Antigravity.
 - In Codex, use `--from codex`. Your judges are Claude and Antigravity.
-- If Codex or Claude has hit its usage limit, the script runs Gemini Neon in
-  its place, so you still get two verdicts (Carbon and Neon). Say so when you
-  report them.
+- In Antigravity, use `--from agy`. Your judges are Claude and Codex.
+- If Codex or Claude has hit its usage limit, the script runs a Gemini model
+  in its place, so you still get two verdicts. From Claude Code or Codex that
+  is Gemini Neon (beside Carbon). From Antigravity it is Gemini Carbon, and
+  Neon if both have hit their limit. The script prints a note naming the
+  stand-in; say so when you report.
 
 ## 2. Write a neutral brief
 
@@ -44,7 +47,7 @@ before sending it.
 ## 3. Run it
 
 ```
-consult --from <claude|codex> --brief /path/to/brief.md [--add-dir DIR ...]
+consult --from <claude|codex|agy> --brief /path/to/brief.md [--add-dir DIR ...]
 ```
 
 - Run from the project folder. Add `--add-dir` for every other workspace folder
@@ -84,4 +87,4 @@ the verdicts do not show it, and never blend a dissent into a consensus.
 Say which judge failed and the error the script printed (missing CLI, timeout,
 not logged in, empty verdict). Report the verdict you did get.
 Never run a substitute model to fill the gap yourself; only the script's own
-Neon stand-in counts.
+Gemini stand-in counts.

@@ -1,6 +1,6 @@
 # ai-rubric
 
-Independent second opinions for judgment calls. From Claude Code or Codex, the
+Independent second opinions for judgment calls. From Claude Code, Codex or Antigravity, the
 `consult` skill sends a neutral brief to the other two pinned models. Each
 model reads the workspace itself, argues for and against the proposal without
 knowing who wrote it, and gives a verdict.
@@ -11,11 +11,15 @@ knowing who wrote it, and gives a verdict.
 |---|---|
 | Claude Code | Codex `gpt-6.2-astra` (high) and Antigravity `gemini-4-carbon-high` |
 | Codex | Claude `claude-opus-5-5` (high) and Antigravity `gemini-4-carbon-high` |
+| Antigravity | Claude `claude-opus-5-5` (high) and Codex `gpt-6.2-astra` (high) |
 
 The models are fixed in code (`ai_rubric/judges.py`). If Codex or Claude
-fails because it hit its usage limit, Antigravity `gemini-4-neon-high` runs
-in its place, so you still get two verdicts: Carbon and Neon. Any other
-failure is reported as failed and nothing replaces it.
+fails because it hit its usage limit, a Gemini model runs in its place, so
+you still get two verdicts. From Claude Code or Codex that is
+`gemini-4-neon-high` (beside Carbon). From Antigravity it is
+`gemini-4-carbon-high`, and `gemini-4-neon-high` for the second slot if both
+hit their limit. Any other failure is reported as failed and nothing
+replaces it.
 
 ## Install, once per machine
 
@@ -26,8 +30,11 @@ The installer:
 
 - links `skills/consult` into `~/.claude/skills/` and `~/.codex/skills/`
 - links `bin/consult` into `~/.local/bin/`
+- links `install/antigravity-plugin` into `~/.gemini/config/plugins/ai-rubric`,
+  so Antigravity finds the skill
 - adds a marked rule block to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`
-  and `~/.gemini/GEMINI.md`
+  and `~/.gemini/GEMINI.md` (in GEMINI.md, both the judging rules and the
+  "use consult" rule)
 - allows `consult` in `~/.codex/rules/default.rules`
 - pre-approves a few read-only shell commands (`ls`, `cat`, `head`, `tail`,
   `wc`, `grep`, `stat`, `du`, `pwd`) in Antigravity's global
@@ -61,7 +68,7 @@ approve the run, or change the policy yourself.
 
     consult --from claude --brief brief.md [--add-dir ../other-folder]
 
-Run it from the project folder. `--from` names the tool you are in. The
+Run it from the project folder. `--from` names the tool you are in: `claude`, `codex` or `agy`. The
 brief must not say who wrote the proposal or which way anyone leans; the
 script refuses briefs that look like they do (exit 3). Pass
 `--allow-flagged` only when the flagged words are the subject itself.
@@ -77,7 +84,7 @@ run directory:
 This starts `claude auth login --claudeai` using the configured/discovered Claude
 CLI. Complete the browser sign-in yourself. The command checks that subscription
 authentication is active, then retries only the failed judges once. It never
-falls back to API billing, and substitutes a model only through the Neon
+falls back to API billing, and substitutes a model only through the Gemini
 stand-in described under Judges. Successful verdict files stay
 untouched, and previous failure messages remain in `run.log`.
 

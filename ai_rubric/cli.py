@@ -1,6 +1,7 @@
 """consult: get blind, two-sided verdicts from the other two judges."""
 
 import argparse
+import json
 import os
 import shlex
 import signal
@@ -9,7 +10,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import load_config
-from .judges import HOSTS
+from .judges import HOSTS, judges_for
 from .prompt import lint_brief
 from .run import run_consult
 from .recovery import resume_consult
@@ -23,7 +24,7 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="consult", description=__doc__)
     p.add_argument("--version", action="version", version=f"consult {__version__}")
     p.add_argument("--from", dest="host", choices=HOSTS,
-                   help="the tool asking: claude (Claude Code) or codex")
+                   help="the tool asking: claude (Claude Code), codex, or agy (Antigravity)")
     source = p.add_mutually_exclusive_group(required=True)
     source.add_argument("--brief", help="file holding the neutral brief")
     source.add_argument("--resume", metavar="DIR", help="retry only failed judges from a saved run")
@@ -42,6 +43,19 @@ def _resume_command(run_dir, config_arg: str | None) -> list[str]:
     if config_arg:
         command.extend(["--config", str(Path(config_arg).absolute())])
     return command
+
+
+def _stand_ins(host: str | None, run_dir, verdicts) -> list:
+    """Verdicts from a model that filled a usage-limited slot."""
+    if host is None:  # a resumed run: the host is in its manifest
+        try:
+            host = json.loads((Path(run_dir) / "run.json").read_text(encoding="utf-8"))["host"]
+            regular = {j.name for j in judges_for(host)}
+        except (OSError, ValueError, KeyError, TypeError):
+            return []
+    else:
+        regular = {j.name for j in judges_for(host)}
+    return [v for v in verdicts if v.judge not in regular]
 
 
 def main(argv: list[str]) -> int:
@@ -94,8 +108,8 @@ def main(argv: list[str]) -> int:
         print(f"=== {v.judge} ({v.model}) — {status} ===")
         print(v.text.rstrip() if v.ok else v.error)
         print()
-    if any(v.judge == "neon" for v in verdicts):
-        print("Note: the other host's model hit its usage limit; Gemini Neon was called in its place.\n")
+    for v in _stand_ins(args.host, run_dir, verdicts):
+        print(f"Note: a judge hit its usage limit; {v.model} was called in its place.\n")
     successes = sum(v.ok for v in verdicts)
     if 0 < successes < len(verdicts):
         print(f"PARTIAL: {successes} of {len(verdicts)} judges completed.\n")

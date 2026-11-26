@@ -21,7 +21,7 @@ class SkillFileTest(unittest.TestCase):
         self.assertIn("no council", desc)
 
     def test_body_names_both_hosts_and_override(self):
-        for needle in ("--from claude", "--from codex", "--allow-flagged"):
+        for needle in ("--from claude", "--from codex", "--from agy", "--allow-flagged"):
             self.assertIn(needle, self.body)
 
     def test_body_keeps_brief_exclusions_and_no_substitute(self):
