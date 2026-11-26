@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .config import Config
-from .judges import FALLBACK, HOSTS, judges_for
+from .judges import HOSTS, judges_for, stand_ins_for
 
 if TYPE_CHECKING:
     from .run import Verdict
@@ -74,15 +74,16 @@ def load_run(run_dir: Path) -> dict:
             if not isinstance(record, dict) or set(record) != {
                     "judge", "model", "ok", "text", "error", "seconds", "error_kind"}:
                 raise ValueError("invalid verdict fields")
-            if i == 0 and record.get("judge") == FALLBACK.name:
-                judge = FALLBACK  # the stand-in took the other host's slot
+            stand_in = next((s for s in stand_ins_for(state["host"]) if s.name == record.get("judge")), None)
+            if stand_in:
+                judge = stand_in  # a stand-in took this usage-limited slot
             if record["judge"] != judge.name or record["model"] != judge.model:
                 raise ValueError("this run used different judge models than the current ones "
                                  f"(saved by consult {state.get('tool_version', 'before 1.0.0')})")
             if (type(record["ok"]) is not bool or not isinstance(record["text"], str)
                     or (record["error"] is not None and not isinstance(record["error"], str))
-                    or record["error_kind"] not in (None, "authentication_required")
-                    or (record["error_kind"] is not None and judge.name != "claude")
+                    or record["error_kind"] not in (None, "authentication_required", "usage_limit")
+                    or (record["error_kind"] == "authentication_required" and judge.name != "claude")
                     or type(record["seconds"]) not in (int, float)
                     or not math.isfinite(record["seconds"]) or record["seconds"] < 0):
                 raise ValueError("invalid verdict fields")

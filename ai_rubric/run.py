@@ -6,6 +6,7 @@ import signal
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -15,7 +16,7 @@ from .commands import build_command
 from .auth import authentication_error, usage_limit_error
 from .config import Config
 from .discover import find_cli
-from .judges import FALLBACK, Judge, judges_for
+from .judges import Judge, judges_for, stand_ins_for
 from .prompt import build_prompt
 from . import __version__, recovery
 
@@ -151,12 +152,27 @@ def _run_one(judge: Judge, config: Config, prompt: str, cwd: str,
 
 
 def _run_slot(judge: Judge, config: Config, prompt: str, cwd: str,
-              add_dirs: list[str], run_dir: Path, log: list[str]) -> Verdict:
+              add_dirs: list[str], run_dir: Path, log: list[str],
+              claim: Callable[[], Judge | None]) -> Verdict:
     verdict = _run_one(judge, config, prompt, cwd, add_dirs, run_dir, log)
     if verdict.error_kind != "usage_limit" or _STOP.is_set():
         return verdict
-    log.append(f"{judge.name}: usage limit reached; {FALLBACK.name} stands in")
-    return _run_one(FALLBACK, config, prompt, cwd, add_dirs, run_dir, log)
+    stand_in = claim()
+    if stand_in is None:
+        log.append(f"{judge.name}: usage limit reached; no stand-in left")
+        return verdict
+    log.append(f"{judge.name}: usage limit reached; {stand_in.name} stands in")
+    return _run_one(stand_in, config, prompt, cwd, add_dirs, run_dir, log)
+
+
+def _claimer(stand_ins: list[Judge]) -> Callable[[], Judge | None]:
+    """Hand each stand-in to at most one slot, first come first served."""
+    lock = threading.Lock()
+
+    def claim() -> Judge | None:
+        with lock:
+            return stand_ins.pop(0) if stand_ins else None
+    return claim
 
 
 def _pre_run(config: Config) -> None:
@@ -180,7 +196,7 @@ def _export_verdict(run_dir: Path, verdict: Verdict) -> None:
 def _drop_stale_exports(run_dir: Path, judges: list[Judge], state: dict) -> None:
     """A stand-in's verdict replaces its slot's FAILED file (and the reverse on a later retry)."""
     held = {record["judge"] for record in state["verdicts"]}
-    for name in {j.name for j in judges} | {FALLBACK.name}:
+    for name in {j.name for j in judges + stand_ins_for(state["host"])}:
         if name not in held:
             (run_dir / f"{name}.md").unlink(missing_ok=True)
 
@@ -195,6 +211,8 @@ def _execute(run_dir: Path, state: dict, config: Config) -> list[Verdict]:
     pending = [(i, judge) for i, judge in enumerate(judges) if not verdicts[i].ok]
     if not pending:
         return verdicts
+    kept = {verdicts[i].judge for i in range(len(judges)) if verdicts[i].ok}
+    claim = _claimer([s for s in stand_ins_for(state["host"]) if s.name not in kept])
     prompt = (run_dir / "prompt.md").read_bytes().decode("utf-8")
     log_path = run_dir / "run.log"
     log = log_path.read_text(encoding="utf-8").splitlines() if log_path.exists() else []
@@ -204,7 +222,7 @@ def _execute(run_dir: Path, state: dict, config: Config) -> list[Verdict]:
     with ThreadPoolExecutor(max_workers=len(pending)) as pool:
         try:
             futures = {pool.submit(_run_slot, judge, config, prompt, state["cwd"],
-                                   state["extra_dirs"], run_dir, log): i for i, judge in pending}
+                                   state["extra_dirs"], run_dir, log, claim): i for i, judge in pending}
             for future in as_completed(futures):
                 i = futures[future]
                 v = verdicts[i] = future.result()

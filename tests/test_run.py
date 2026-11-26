@@ -10,7 +10,7 @@ from unittest import mock
 
 from ai_rubric import discover
 from ai_rubric.config import Config
-from ai_rubric.judges import JUDGES
+from ai_rubric.judges import FALLBACK, JUDGES
 from ai_rubric import run as run_module
 from ai_rubric.run import make_run_dir, run_consult
 
@@ -153,7 +153,8 @@ class RunConsultTest(unittest.TestCase):
         run_module._STOP.set()
         self.addCleanup(run_module._STOP.clear)
         with mock.patch.object(run_module, "_run_one", return_value=limit) as one:
-            verdict = run_module._run_slot(JUDGES["codex"], cfg, "P", str(self.ws), [], self.dir, [])
+            verdict = run_module._run_slot(JUDGES["codex"], cfg, "P", str(self.ws), [], self.dir, [],
+                                           claim=lambda: FALLBACK)
         self.assertEqual(one.call_count, 1)
         self.assertEqual(verdict.judge, "codex")
 
@@ -287,6 +288,57 @@ class RunConsultTest(unittest.TestCase):
         self.assertEqual(verdicts[0].text, "gemini-4-neon-high")
         self.assertEqual((run_dir / "neon.md").read_text(), "gemini-4-neon-high")
         self.assertIn("usage limit", (run_dir / "run.log").read_text())
+
+    LIMIT = "sys.stderr.write(\"You've hit your usage limit.\"); sys.exit(1)"
+    MODEL = "text = args[args.index('--model') + 1]"
+
+    def test_agy_host_gets_claude_and_codex(self):
+        cfg = self.config(cli_paths={"claude": self.fake("claude"), "codex": self.fake("codex")})
+        _, verdicts = run_consult("agy", "Q", str(self.ws), [], cfg)
+        self.assertEqual([(v.judge, v.model, v.ok) for v in verdicts],
+                         [("claude", "claude-opus-5-5", True), ("codex", "gpt-6.2-astra", True)])
+
+    def test_agy_host_usage_limit_brings_in_carbon(self):
+        cfg = self.config(cli_paths={"claude": self.fake("claude"),
+                                     "codex": self.fake("codex", body=self.LIMIT),
+                                     "agy": self.fake("agy", body=self.MODEL)})
+        run_dir, verdicts = run_consult("agy", "Q", str(self.ws), [], cfg)
+        self.assertEqual([(v.judge, v.model, v.ok) for v in verdicts],
+                         [("claude", "claude-opus-5-5", True), ("agy", "gemini-4-carbon-high", True)])
+        self.assertEqual((run_dir / "agy.md").read_text(), "gemini-4-carbon-high")
+        self.assertFalse((run_dir / "codex.md").exists())
+
+    def test_agy_host_both_limited_get_carbon_and_neon(self):
+        cfg = self.config(cli_paths={"claude": self.fake("claude", body=self.LIMIT),
+                                     "codex": self.fake("codex", body=self.LIMIT),
+                                     "agy": self.fake("agy", body=self.MODEL)})
+        _, verdicts = run_consult("agy", "Q", str(self.ws), [], cfg)
+        self.assertEqual(sorted((v.judge, v.text) for v in verdicts),
+                         [("agy", "gemini-4-carbon-high"), ("neon", "gemini-4-neon-high")])
+
+    def test_agy_resume_after_carbon_held_gives_neon(self):
+        from ai_rubric.recovery import resume_consult
+        flag = self.dir / "limit"
+        claude = (f"import os\nif os.path.exists({str(flag)!r}):\n    " + self.LIMIT +
+                  "\nsys.stderr.write('connection reset'); sys.exit(1)")
+        cfg = self.config(cli_paths={"claude": self.fake("claude", body=claude),
+                                     "codex": self.fake("codex", body=self.LIMIT),
+                                     "agy": self.fake("agy", body=self.MODEL)})
+        run_dir, verdicts = run_consult("agy", "Q", str(self.ws), [], cfg)
+        self.assertEqual([(v.judge, v.ok) for v in verdicts], [("claude", False), ("agy", True)])
+        flag.touch()
+        _, verdicts = resume_consult(run_dir, cfg)
+        self.assertEqual([(v.judge, v.text) for v in verdicts],
+                         [("neon", "gemini-4-neon-high"), ("agy", "gemini-4-carbon-high")])
+        self.assertFalse((run_dir / "claude.md").exists())
+
+    def test_no_stand_in_left_reports_the_limit(self):
+        limit = run_module.Verdict("codex", "m", False, "", "usage limit", 0.1, "usage_limit")
+        with mock.patch.object(run_module, "_run_one", return_value=limit) as one:
+            verdict = run_module._run_slot(JUDGES["codex"], self.config(), "P", str(self.ws), [],
+                                           self.dir, [], claim=lambda: None)
+        self.assertEqual(one.call_count, 1)
+        self.assertEqual(verdict.error_kind, "usage_limit")
 
     def test_other_failures_get_no_stand_in(self):
         body = "sys.stderr.write('connection reset'); sys.exit(1)"

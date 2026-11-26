@@ -113,6 +113,23 @@ print("## Verdict\\nkeep " + {name!r})
         self.assertEqual(verdicts[0].judge, "neon")
         self.assertEqual(len(self.read_calls()), before)
 
+    def test_agy_host_stand_ins_load_in_either_slot(self):
+        self.expired.unlink()
+        run_dir, _ = self.initial()
+        state = json.loads((run_dir / "run.json").read_text())
+        state["host"] = "agy"
+        state["verdicts"][0].update(judge="agy", model="gemini-4-carbon-high")
+        state["verdicts"][1].update(judge="neon", model="gemini-4-neon-high")
+        (run_dir / "run.json").write_text(json.dumps(state))
+        self.assertEqual([r["judge"] for r in load_run(run_dir)["verdicts"]], ["agy", "neon"])
+
+    def test_saved_usage_limit_failure_still_resumes(self):
+        run_dir, _ = self.initial()
+        state = json.loads((run_dir / "run.json").read_text())
+        state["verdicts"][0].update(ok=False, text="", error="exit 1: usage limit", error_kind="usage_limit")
+        (run_dir / "run.json").write_text(json.dumps(state))
+        self.assertEqual(load_run(run_dir)["verdicts"][0]["error_kind"], "usage_limit")
+
     def test_resume_only_failed_judge_preserves_verdict_and_exact_context(self):
         run_dir, _ = self.initial()
         agy = run_dir / "agy.md"
