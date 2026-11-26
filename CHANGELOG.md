@@ -9,6 +9,17 @@ entry from this file as its notes:
 `gh release create v<version> --verify-tag --title "v<version>" --notes-file <entry.md>`.
 Each saved run records the version that made it (`tool_version` in `run.json`).
 
+## 1.1.1 - 2026-11-26
+
+- `consult` restarts with the Python the installer checked when a host's shell
+  finds an older `python3` first (the installer saves its path in
+  `~/.local/state/ai-rubric/python`; rerun `./install.sh` to get it).
+- A missing `extra_dirs` folder from the config stops a fresh run (exit 2),
+  like a missing `--add-dir`; before, it was saved and blocked every resume.
+- `pre_run` has the same time limit as a judge.
+- The brief check also flags `agy`, `astra` and `sonnet`.
+- Resume accepts a stand-in only in a Claude or Codex slot, once per run.
+
 ## 1.1.0 - 2026-11-26
 
 - Antigravity is a host: `consult --from agy` asks Claude `claude-opus-5-5`

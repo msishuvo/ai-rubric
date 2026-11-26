@@ -1,6 +1,6 @@
 {
   "name": "ai-rubric",
   "displayName": "ai-rubric",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "The consult skill: blind second opinions from Claude Opus and GPT on judgment calls."
 }
