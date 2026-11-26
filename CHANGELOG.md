@@ -4,6 +4,9 @@ Versions follow semantic versioning: patch for fixes, minor for new behavior,
 major when saved runs stop resuming or the installed files change. To release:
 bump `__version__` in `ai_rubric/__init__.py`, add an entry here, commit, then
 `git tag -a v<version> -m "consult <version>"` and `git push origin v<version>`.
+A pushed tag does not make a GitHub release; publish one with that version's
+entry from this file as its notes:
+`gh release create v<version> --verify-tag --title "consult <version>" --notes-file <entry.md>`.
 Each saved run records the version that made it (`tool_version` in `run.json`).
 
 ## 1.1.0 - 2026-11-26
