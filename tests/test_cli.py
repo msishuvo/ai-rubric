@@ -183,6 +183,24 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("bad manifest", err)
 
+    def test_old_python_restarts_with_the_installed_python(self):
+        old = "/usr/bin/python3"
+        probe = subprocess.run([old, "-c", "import sys; print(sys.version_info < (3, 11))"],
+                               capture_output=True, text=True) if os.path.exists(old) else None
+        if not probe or probe.stdout.strip() != "True":
+            self.skipTest("needs an older /usr/bin/python3")
+        home = Path(self.tmp.name, "home")
+        saved = home / ".local/state/ai-rubric/python"
+        saved.parent.mkdir(parents=True)
+        env = {**os.environ, "HOME": str(home)}
+        proc = subprocess.run([old, str(REPO / "bin/consult"), "--version"], capture_output=True, text=True, env=env)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("./install.sh", proc.stderr)
+        saved.write_text(sys.executable + "\n")
+        proc = subprocess.run([old, str(REPO / "bin/consult"), "--version"], capture_output=True, text=True, env=env)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("consult ", proc.stdout)
+
     def test_bin_works_through_symlink(self):
         link = Path(self.tmp.name, "consult")
         link.symlink_to(REPO / "bin" / "consult")

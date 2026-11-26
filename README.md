@@ -47,7 +47,8 @@ It checks Python and the existing markers first and changes nothing if either
 is wrong. Running it again changes nothing. In the markdown and rules files it
 only edits text between its own `ai-rubric start/end` markers; in
 Antigravity's settings it adds only its own entries and removes only those.
-Needs Python 3.11+ as `python3`, and `claude`, `codex` and `agy`, each logged
+Needs Python 3.11+ as `python3` in the shell you install from (the installer
+saves its path, so hosts whose shells find an older `python3` still work), and `claude`, `codex` and `agy`, each logged
 in.
 
 ## When it runs

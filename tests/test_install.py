@@ -130,6 +130,8 @@ class InstallScriptTest(unittest.TestCase):
         import json
         agy = json.loads((self.home / ".gemini/antigravity-cli/settings.json").read_text())
         self.assertIn("command(cat)", agy["permissions"]["allow"])
+        saved = Path((self.home / ".local/state/ai-rubric/python").read_text().strip())
+        self.assertTrue(saved.is_absolute() and os.access(saved, os.X_OK))
 
     def test_antigravity_gets_the_skill_and_the_consult_rule(self):
         proc = self.run_install()

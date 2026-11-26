@@ -4,7 +4,13 @@ import os
 import sys
 
 if sys.version_info < (3, 11):
-    sys.stderr.write("consult needs Python 3.11 or newer (found %d.%d)\n" % sys.version_info[:2])
+    # A host shell may find an older python3 first; restart with the one install.sh checked.
+    saved = os.path.expanduser("~/.local/state/ai-rubric/python")
+    python = open(saved).read().strip() if os.path.isfile(saved) else ""
+    if python and os.access(python, os.X_OK) and os.path.realpath(python) != os.path.realpath(sys.executable):
+        os.execv(python, [python, os.path.realpath(__file__)] + sys.argv[1:])
+    sys.stderr.write("consult needs Python 3.11 or newer (found %d.%d); run ./install.sh from a "
+                     "shell where python3 is 3.11+\n" % sys.version_info[:2])
     sys.exit(2)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))

@@ -7,6 +7,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BLOCKS=(python3 "$REPO/ai_rubric/blocks.py")
 AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
 AGY_STATE="$HOME/.local/state/ai-rubric/agy-added.json"
+PYTHON_STATE="$HOME/.local/state/ai-rubric/python"  # bin/consult restarts with it from shells with an older python3
 status=0
 
 # Preflight: change nothing unless every check passes.
@@ -78,11 +79,14 @@ if [ "${1:-}" = "--uninstall" ]; then
   done
   "${BLOCKS[@]}" remove "$HOME/.codex/rules/default.rules" hash || status=1
   python3 "$REPO/ai_rubric/agy_settings.py" remove "$AGY_SETTINGS" "$AGY_STATE" || status=1
+  rm -f "$PYTHON_STATE"
   echo "ai-rubric removed (only its own links and marked blocks)."
   exit $status
 fi
 
 for pair in "${LINKS[@]}"; do link "${pair%%|*}" "${pair##*|}"; done
+mkdir -p "$(dirname "$PYTHON_STATE")"
+python3 -c 'import sys; print(sys.executable)' > "$PYTHON_STATE" && echo "python  $(cat "$PYTHON_STATE")" || status=1
 
 for f in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
   "${BLOCKS[@]}" upsert "$f" md "$REPO/install/claude-rule.md" && echo "rules   $f" || status=1
