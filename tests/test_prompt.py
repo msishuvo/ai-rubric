@@ -23,6 +23,9 @@ class BuildPromptTest(unittest.TestCase):
     def test_prompt_prefers_file_tools_over_shell(self):
         self.assertIn("file-reading and search tools", build_prompt("b", ["/w"]))
 
+    def test_prompt_forbids_consulting_while_judging(self):
+        self.assertIn("Do not use the consult skill", build_prompt("B", ["/w"]))
+
     def test_prompt_forbids_edits(self):
         self.assertIn("Do not edit", build_prompt("b", ["/w"]))
 

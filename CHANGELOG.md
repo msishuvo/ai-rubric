@@ -17,6 +17,7 @@ Each saved run records the version that made it (`tool_version` in `run.json`).
   (`~/.gemini/config/plugins/ai-rubric`) and adds the "use consult" rule to
   `~/.gemini/GEMINI.md`.
 - The stand-in note names the model that ran.
+- Judges are told not to use the consult skill themselves.
 - Fix: a run cancelled right after a usage limit can be resumed.
 
 ## 1.0.0 - 2026-11-25

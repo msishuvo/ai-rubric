@@ -14,6 +14,8 @@ Rules:
   read-only commands may be allowed: ls, cat, head, tail, wc, grep, stat, du, pwd.
   Do not run git or any other command; in some judges a refused command ends the
   run with no answer.
+- Do not use the consult skill or ask other models for a second opinion; you are
+  the second opinion.
 - Do not invent facts. Cite file paths (with lines where useful) or sources for
   every claim that matters. If you could not check something, say so.
 

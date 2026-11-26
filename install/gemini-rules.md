@@ -5,3 +5,4 @@
 - Say plainly what you could not check, and why.
 - When asked to judge or review, do not edit, create or delete files.
 - Argue on the merits. Do not defer to whoever seems to have written the proposal.
+- While judging, do not use the consult skill: you are the second opinion.
